@@ -103,7 +103,7 @@ function cleanSet(s) {
     extra: posOrNull(s.extra),
   };
   // Ein Satz ohne jede Zahl ist kein Satz
-  if (out.reps == null && out.seconds == null && out.weight == null) return null;
+  if (out.reps == null && out.seconds == null && out.weight == null && out.extra == null) return null;
   return out;
 }
 
@@ -186,8 +186,10 @@ function normalize(src, opts) {
 /** Plant das Einfügen alter Trainings (Datei mit meta.kind "gym-merge"),
     ohne `db` zu ändern. Übungen werden über den Namen gefunden, damit
     eigene Übungen wie „Squats" ihren Verlauf behalten; fehlende werden
-    angelegt. Ein Training an einem Tag, an dem schon eines steht, wird
-    übersprungen: so verdoppelt ein zweiter Import nichts.
+    angelegt. Eine Übung ohne Sätze bleibt stehen (in den Notizen fehlten
+    oft die Zahlen), ein Training ohne Übung nicht. Ein Training an einem
+    Tag, an dem schon eines steht, wird übersprungen: so verdoppelt ein
+    zweiter Import nichts.
     Rückgabe: { exercises: neu anzulegen, sessions: neu, skipped: Daten } */
 function planMerge(db, src, uid) {
   if (!src || !src.meta || src.meta.kind !== 'gym-merge' || !Array.isArray(src.sessions)) {
@@ -223,7 +225,6 @@ function planMerge(db, src, uid) {
     const items = [];
     (Array.isArray(se.items) ? se.items : []).forEach((it) => {
       const sets = (Array.isArray(it && it.sets) ? it.sets : []).map(cleanSet).filter(Boolean);
-      if (!sets.length) return;
       const e = exFor(it.exercise);
       if (!e) return;
       const have = items.find((x) => x.exerciseId === e.id);

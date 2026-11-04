@@ -25,7 +25,7 @@
 const KEY = 'gym.v1';
 /* Bei jeder Änderung hochzählen: wird in den Einstellungen angezeigt, damit
    sich auf dem Handy prüfen lässt, welche Fassung wirklich läuft. */
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.2.0';
 
 const THEME_KEY = 'gym.theme';
 const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Gerätesache, nicht im Backup
@@ -155,9 +155,10 @@ const sortSessions = () => db.sessions.sort((a, b) => Date.parse(b.date) - Date.
 function setText(st, type) {
   if (type === 'time') return Core.clock(st.seconds);
   if (type === 'bodyweight') {
-    return `${nf0.format(st.reps || 0)} Wdh` + (fin(st.extra) && st.extra > 0 ? ` +${kg(st.extra)}` : '');
+    return `${fin(st.reps) ? nf0.format(st.reps) : '–'} Wdh` + (fin(st.extra) && st.extra > 0 ? ` +${kg(st.extra)}` : '');
   }
-  return `${nf0.format(st.reps || 0)} × ${fin(st.weight) ? kg(st.weight) : '–'}`;
+  // Alte, importierte Sätze haben teils nur das Gewicht: dann „– × 80 kg" statt einer erfundenen 0
+  return `${fin(st.reps) ? nf0.format(st.reps) : '–'} × ${fin(st.weight) ? kg(st.weight) : '–'}`;
 }
 
 /* ── 3. Navigation und Rendern ──────────────────────────────── */
