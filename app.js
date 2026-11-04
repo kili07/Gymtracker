@@ -25,7 +25,7 @@
 const KEY = 'gym.v1';
 /* Bei jeder Änderung hochzählen: wird in den Einstellungen angezeigt, damit
    sich auf dem Handy prüfen lässt, welche Fassung wirklich läuft. */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 
 const THEME_KEY = 'gym.theme';
 const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Gerätesache, nicht im Backup
@@ -52,6 +52,8 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 
 /* Formatierung immer über Intl, nie von Hand mit toFixed und Komma-Ersatz. */
 const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+/** Zahl mit passender Einzahl oder Mehrzahl: „1 Satz", „3 Sätze". */
+const plural = (n, one, many) => `${nf0.format(n)} ${n === 1 ? one : many}`;
 const nf1 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const nfa = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
 const dfLong = new Intl.DateTimeFormat('de-DE',
@@ -302,7 +304,7 @@ function noSession() {
     ${last.items.length ? `<div class="card"><div class="lbl">Übungen</div><p class="note">${esc(last.items.map((it) => exName(it.exerciseId)).join(', '))}</p></div>` : ''}`;
 }
 
-const sessionLine = (st) => `${st.exercises} Übungen · ${st.sets} Sätze`
+const sessionLine = (st) => `${plural(st.exercises, 'Übung', 'Übungen')} · ${plural(st.sets, 'Satz', 'Sätze')}`
   + (st.volume ? ` · ${kg0(st.volume)}` : '');
 
 /** Laufendes Training: Kopf mit Kennwerten, je Übung ein Block, Notiz und
@@ -602,7 +604,7 @@ function setsSheet(sid, exId, back) {
   $('#ss_add').onclick = () => openSetSheet(sid, exId, null, reopen);
   $('#ss_open').onclick = () => { closeSheet(); openEx(exId); };
   $('#ss_del').onclick = () => askSheet('Übung entfernen?',
-    `${it.sets.length} Sätze werden aus diesem Training gelöscht.`, 'Entfernen', () => {
+    `${plural(it.sets.length, 'Satz wird', 'Sätze werden')} aus diesem Training gelöscht.`, 'Entfernen', () => {
       se.items = se.items.filter((x) => x !== it);
       save(); closeSheet(); render(); toast('Entfernt');
     }, reopen, true);
@@ -698,7 +700,7 @@ function noteSheet(sid, back) {
 /* ── 8. Ansicht Verlauf ─────────────────────────────────────── */
 function renderVerlauf() {
   const el = $('#view-verlauf');
-  $('#topSub').textContent = db.sessions.length ? `${db.sessions.length} Trainings` : '';
+  $('#topSub').textContent = db.sessions.length ? plural(db.sessions.length, 'Training', 'Trainings') : '';
   if (!db.sessions.length) {
     el.innerHTML = `<div class="empty"><h2>Noch kein Training im Verlauf</h2>
       <p>Sobald Du ein Training beendet hast, steht es hier mit allen Sätzen.</p>
@@ -727,7 +729,7 @@ function renderVerlauf() {
 
   el.innerHTML = `<div class="sec-h">Sätze je Woche</div>
     <div class="card">${chartBox(bars, (i) => weeks[i]
-      ? `<b>${nf0.format(weeks[i].sets)}</b> Sätze · ${nf0.format(weeks[i].sessions)} Trainings · Woche ab ${esc(dfMed.format(new Date(weeks[i].start)))}`
+      ? `<b>${nf0.format(weeks[i].sets)}</b> ${weeks[i].sets === 1 ? 'Satz' : 'Sätze'} · ${plural(weeks[i].sessions, 'Training', 'Trainings')} · Woche ab ${esc(dfMed.format(new Date(weeks[i].start)))}`
       : null, '<span>Antippen zum Ablesen</span>')}
       <div class="stats">
         <div><span class="lbl">Trainings</span><span class="num">${countNum(last30.length)}</span></div>
@@ -815,7 +817,7 @@ let exQuery = '';
 function renderUebungen() {
   const el = $('#view-uebungen');
   const open = db.exercises.filter((e) => !e.archived);
-  $('#topSub').textContent = `${open.length} Übungen`;
+  $('#topSub').textContent = plural(open.length, 'Übung', 'Übungen');
   el.innerHTML = `<div class="field-ic">${ICON.search}<input id="exQ" autocomplete="off" placeholder="Übung suchen" aria-label="Übung suchen" value="${esc(exQuery)}"></div>
     <div id="exList">${exListHtml()}</div>`;
   /* Nur die Liste neu schreiben: render() würde das Suchfeld ersetzen und
@@ -927,7 +929,7 @@ function bestLine(ex, b) {
   if (!b.sessions) return 'Noch kein Satz gespeichert.';
   const best = ex.type === 'time' ? b.secs : (ex.type === 'bodyweight' ? b.reps : b.top);
   const when = best ? dfMed.format(new Date(best.date)) : null;
-  return `${b.sets} Sätze in ${b.sessions} Trainings`
+  return `${plural(b.sets, 'Satz', 'Sätze')} in ${plural(b.sessions, 'Training', 'Trainings')}`
     + (when ? `, Bestwert am ${when}` : '')
     + `. Zuletzt am ${dfMed.format(new Date(b.last.date))}.`;
 }
@@ -958,7 +960,7 @@ function trendText(tr, fmtY, unit) {
   const cls = same ? 'st-off' : (tr.diff > 0 ? 'st-good' : 'st-warn');
   const word = same ? 'etwa gleich wie davor'
     : `${nf0.format(Math.abs(tr.pct))} % ${tr.diff > 0 ? 'mehr' : 'weniger'} als davor`;
-  return `Im Mittel <b>${esc(fmtY(tr.cur))}</b>${u} aus ${nf0.format(tr.n)} Trainings, `
+  return `Im Mittel <b>${esc(fmtY(tr.cur))}</b>${u} aus ${plural(tr.n, 'Training', 'Trainings')}, `
     + `davor ${esc(fmtY(tr.prev))}${u} – <b class="${cls}">${word}</b>.`;
 }
 
@@ -1016,7 +1018,7 @@ function editExercise(id, back) {
       <datalist id="grpList2">${groups.map((g) => `<option value="${esc(g)}"></option>`).join('')}</datalist></label>
     <div class="lbl">Art der Übung</div>
     ${seg('type', Core.TYPES.map((t) => [t, TYPE_LABEL[t]]), ex.type)}
-    ${used ? `<p class="note">In ${used} Trainings erfasst. Ein anderer Typ ändert nur die Anzeige, gespeicherte Sätze bleiben.</p>` : ''}
+    ${used ? `<p class="note">In ${plural(used, 'Training', 'Trainings')} erfasst. Ein anderer Typ ändert nur die Anzeige, gespeicherte Sätze bleiben.</p>` : ''}
     <button class="btn btn-block" id="f_arch">${ex.archived ? ICON.restore + 'Wieder aufnehmen' : ICON.archive + 'Archivieren'}</button>
     <button class="btn btn-danger btn-block" id="f_del">${ICON.trash}Übung löschen</button>
   `, () => {
@@ -1040,7 +1042,7 @@ function editExercise(id, back) {
     toast(ex.archived ? 'Archiviert' : 'Wieder dabei');
   };
   $('#f_del').onclick = () => askSheet('Übung löschen?',
-    used ? `Die Übung steht in ${used} Trainings. Mit ihr verschwinden alle dort gespeicherten Sätze. Archivieren behält den Verlauf.`
+    used ? `Die Übung steht in ${plural(used, 'Training', 'Trainings')}. Mit ihr verschwinden alle dort gespeicherten Sätze. Archivieren behält den Verlauf.`
       : 'Die Übung wird gelöscht.',
     'Löschen', () => {
       db.exercises = db.exercises.filter((x) => x.id !== id);
@@ -1101,7 +1103,7 @@ function renderEinst() {
     <div class="card">
       <button class="btn btn-block hidden" id="btnInstall" data-act="install">App installieren</button>
       <button class="btn btn-block" data-act="update">Nach Update suchen</button>
-      <p class="note">Gymtracker ${esc(APP_VERSION)} · ${nf0.format(db.sessions.length)} Trainings, ${nf0.format(db.exercises.length)} Übungen</p>
+      <p class="note">Gymtracker ${esc(APP_VERSION)} · ${plural(db.sessions.length, 'Training', 'Trainings')}, ${plural(db.exercises.length, 'Übung', 'Übungen')}</p>
     </div>`;
   $('#fileImport').onchange = (e) => importBackup(e.target.files[0]);
   $('#fileMerge').onchange = (e) => mergeOld(e.target.files[0]);
@@ -1149,7 +1151,7 @@ function importBackup(file) {
       }
       const stand = d.meta && d.meta.exported ? ` vom ${dfMed.format(new Date(d.meta.exported))}` : '';
       askSheet('Backup laden',
-        `Das Backup${stand} enthält ${d.sessions.length} Trainings und ${d.exercises.length} Übungen. `
+        `Das Backup${stand} enthält ${plural(d.sessions.length, 'Training', 'Trainings')} und ${plural(d.exercises.length, 'Übung', 'Übungen')}. `
         + 'Deine jetzigen Daten werden dabei ersetzt.',
         'Laden', () => {
           db = Core.normalize(d, { uid, themes: Object.keys(THEMES) });   // ergänzt Fehlendes, wirft `meta` weg
@@ -1181,13 +1183,13 @@ function mergeOld(file) {
       const ex = plan.exercises.length
         ? ` Neu angelegt ${plan.exercises.length === 1 ? 'wird' : 'werden'}: ${plan.exercises.map((e) => e.name).join(', ')}.` : '';
       askSheet('Alte Trainings hinzufügen',
-        `${nf0.format(plan.sessions.length)} Trainings mit ${nf0.format(sets)} Sätzen kommen dazu.${ex}${skip}`,
+        `${plural(plan.sessions.length, 'Training', 'Trainings')} mit ${plural(sets, 'Satz', 'Sätzen')} ${plan.sessions.length === 1 ? 'kommt' : 'kommen'} dazu.${ex}${skip}`,
         'Hinzufügen', () => {
           db.exercises = db.exercises.concat(plan.exercises);
           db.sessions = db.sessions.concat(plan.sessions);
           db = Core.normalize(db, { uid, themes: Object.keys(THEMES) });   // sortiert den Verlauf neu
           save(); closeSheet(); render();
-          toast(`${nf0.format(plan.sessions.length)} Trainings hinzugefügt`);
+          toast(`${plural(plan.sessions.length, 'Training', 'Trainings')} hinzugefügt`);
         });
     } catch (e) { infoSheet('Import fehlgeschlagen', e.message); }
   };
