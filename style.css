@@ -105,6 +105,9 @@ button.row{transition:background var(--t-fast)}
 button.row:active{background:var(--surface-2)}
 svg.chev{width:16px; height:16px; color:var(--muted); flex:none}
 .row > svg{width:18px; height:18px; color:var(--muted); flex:none}
+/* Häkchen hinter dem Namen (Übung schon im laufenden Training): ohne feste
+   Größe zieht das SVG sich auf volle Zeilenbreite und bricht wegen svg{display:block} um. */
+.row .t svg{display:inline-block; width:16px; height:16px; vertical-align:-3px; flex:none}
 
 /* ── 4. Knöpfe, Pills, Chips, Segmente, Schalter, Formulare ─── */
 .btn{

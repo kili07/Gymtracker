@@ -25,7 +25,7 @@
 const KEY = 'gym.v1';
 /* Bei jeder Änderung hochzählen: wird in den Einstellungen angezeigt, damit
    sich auf dem Handy prüfen lässt, welche Fassung wirklich läuft. */
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 
 const THEME_KEY = 'gym.theme';
 const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Gerätesache, nicht im Backup
