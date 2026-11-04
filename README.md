@@ -20,7 +20,7 @@ Trainingslogger fürs Handy: Sätze, Wiederholungen und Gewicht während des Tra
 
 Unter jedem Diagramm steht ein Satz zur Einordnung: Mittel im Zeitraum gegen den Zeitraum davor. Antippen oder Ziehen im Diagramm liest den einzelnen Wert ab.
 
-**Einstellungen** — Pausenzeit, Schrittweite fürs Gewicht, Übungen verwalten (anlegen, umbenennen, archivieren, löschen), hell/dunkel, Benachrichtigung erlauben, Backup, Installieren, Version.
+**Einstellungen** — Pausenzeit, Schrittweite fürs Gewicht, Übungen verwalten (anlegen, umbenennen, archivieren, löschen), hell/dunkel, Benachrichtigung erlauben, Backup, alte Trainings hinzufügen, Installieren, Version.
 
 Als Startliste sind die bisher genutzten Übungen angelegt: Bizeps, Bankdrücken frei und geführt, Cross Butterfly (Kabelturm), Butterfly, Schulter, Bauch, Klimmzüge, ISO Lateral Row, Deadhang.
 
@@ -34,7 +34,7 @@ Danach startet die App vom Homescreen, läuft offline und aktualisiert sich beim
 
 ## Daten und Backup
 
-Alles liegt in `localStorage` unter `gym.v1`, nur auf diesem Gerät. **„Browserdaten löschen" entfernt die Daten ohne Vorwarnung**, deshalb regelmäßig Einstellungen → Backup speichern. Die Datei (`gymtracker-JJJJ-MM-TT.json`) enthält Übungen, Trainings und Einstellungen und lässt sich über „Backup laden" auf jedem Gerät wieder einspielen; dabei werden die vorhandenen Daten ersetzt.
+Alles liegt in `localStorage` unter `gym.v1`, nur auf diesem Gerät. **„Browserdaten löschen" entfernt die Daten ohne Vorwarnung**, deshalb regelmäßig Einstellungen → Backup speichern. Die Datei (`gymtracker-JJJJ-MM-TT.json`) enthält Übungen, Trainings und Einstellungen und lässt sich über „Backup laden" auf jedem Gerät wieder einspielen; dabei werden die vorhandenen Daten ersetzt. „Alte Trainings hinzufügen" liest dagegen eine Import-Datei (`meta.kind: "gym-merge"`) und fügt deren Trainings zu den vorhandenen hinzu.
 
 ## Entwicklung
 

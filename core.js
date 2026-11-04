@@ -182,6 +182,64 @@ function normalize(src, opts) {
   return d;
 }
 
+/* ── 3b. Alte Trainings dazuladen ──────────────────────────── */
+/** Plant das Einfügen alter Trainings (Datei mit meta.kind "gym-merge"),
+    ohne `db` zu ändern. Übungen werden über den Namen gefunden, damit
+    eigene Übungen wie „Squats" ihren Verlauf behalten; fehlende werden
+    angelegt. Ein Training an einem Tag, an dem schon eines steht, wird
+    übersprungen: so verdoppelt ein zweiter Import nichts.
+    Rückgabe: { exercises: neu anzulegen, sessions: neu, skipped: Daten } */
+function planMerge(db, src, uid) {
+  if (!src || !src.meta || src.meta.kind !== 'gym-merge' || !Array.isArray(src.sessions)) {
+    throw new Error('Die Datei enthält keine alten Trainings für diese App.');
+  }
+  const key = (n) => String(n == null ? '' : n).trim().toLowerCase();
+  const byName = new Map();
+  db.exercises.forEach((e) => { if (!byName.has(key(e.name))) byName.set(key(e.name), e); });
+  const meta = new Map();
+  (Array.isArray(src.exercises) ? src.exercises : []).forEach((e) => { if (e && e.name) meta.set(key(e.name), e); });
+  const newEx = [];
+  const exFor = (name) => {
+    const k = key(name);
+    if (!k) return null;
+    if (!byName.has(k)) {
+      const m = meta.get(k) || {};
+      const e = { id: uid(), name: String(name).trim(), group: String(m.group || '').trim(),
+        type: TYPES.indexOf(m.type) >= 0 ? m.type : 'weight', archived: false };
+      byName.set(k, e); newEx.push(e);
+    }
+    return byName.get(k);
+  };
+  // Tag als JJJJ-MM-TT in Ortszeit: ein Training gilt als derselbe Tag, egal zu welcher Uhrzeit
+  const day = (iso) => { const d = new Date(iso); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+  const taken = new Set(db.sessions.map((se) => day(se.date)));
+  const sessions = [], skipped = [];
+  src.sessions.forEach((se) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(se && se.date));
+    if (!m) return;
+    // Mittag statt Mitternacht, damit keine Zeitzone das Datum auf den Vortag schiebt
+    const date = new Date(+m[1], +m[2] - 1, +m[3], 12).toISOString();
+    if (taken.has(day(date))) { skipped.push(date); return; }
+    const items = [];
+    (Array.isArray(se.items) ? se.items : []).forEach((it) => {
+      const sets = (Array.isArray(it && it.sets) ? it.sets : []).map(cleanSet).filter(Boolean);
+      if (!sets.length) return;
+      const e = exFor(it.exercise);
+      if (!e) return;
+      const have = items.find((x) => x.exerciseId === e.id);
+      if (have) have.sets = have.sets.concat(sets); else items.push({ exerciseId: e.id, sets });
+    });
+    if (!items.length) return;
+    taken.add(day(date));
+    sessions.push({ id: uid(), date, end: null, note: String(se.note == null ? '' : se.note),
+      extras: Array.isArray(se.extras) ? se.extras.map(String) : [], items });
+  });
+  // Nur Übungen anlegen, die ein übernommenes Training auch nutzt
+  const used = new Set();
+  sessions.forEach((se) => se.items.forEach((it) => used.add(it.exerciseId)));
+  return { exercises: newEx.filter((e) => used.has(e.id)), sessions, skipped };
+}
+
 /* ── 4. Ein Satz, eine Einheit ──────────────────────────────── */
 /** Volumen eines Satzes in kg: nur bei `weight` sinnvoll, bei
     Körpergewicht fehlt die eigene Masse, bei Zeit gibt es keine Wdh. */
@@ -344,7 +402,7 @@ const typeMap = (exercises) => {
 };
 
 return {
-  TYPES, SEED, blank, normalize, cleanSet, clock, epley, posOrNull,
+  TYPES, SEED, blank, normalize, cleanSet, planMerge, clock, epley, posOrNull,
   setVolume, sessionStats, lastSet, exercisePoints, bests,
   inRange, trend, weekStart, weekBuckets, typeMap,
 };

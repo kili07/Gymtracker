@@ -25,7 +25,7 @@
 const KEY = 'gym.v1';
 /* Bei jeder Änderung hochzählen: wird in den Einstellungen angezeigt, damit
    sich auf dem Handy prüfen lässt, welche Fassung wirklich läuft. */
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.1.0';
 
 const THEME_KEY = 'gym.theme';
 const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Gerätesache, nicht im Backup
@@ -1092,6 +1092,9 @@ function renderEinst() {
       <button class="btn btn-block" data-act="export">Backup speichern</button>
       <button class="btn btn-block" data-act="import">Backup laden</button>
       <input type="file" id="fileImport" accept="application/json,.json" class="hidden">
+      <p class="note">Alte Trainings aus einer Import-Datei kommen zu deinen Daten dazu, nichts wird ersetzt. Tage, an denen schon ein Training steht, werden übersprungen.</p>
+      <button class="btn btn-block" data-act="merge">Alte Trainings hinzufügen</button>
+      <input type="file" id="fileMerge" accept="application/json,.json" class="hidden">
     </div>
 
     <div class="sec-h">App</div>
@@ -1101,6 +1104,7 @@ function renderEinst() {
       <p class="note">Gymtracker ${esc(APP_VERSION)} · ${nf0.format(db.sessions.length)} Trainings, ${nf0.format(db.exercises.length)} Übungen</p>
     </div>`;
   $('#fileImport').onchange = (e) => importBackup(e.target.files[0]);
+  $('#fileMerge').onchange = (e) => mergeOld(e.target.files[0]);
   syncInstall();
 }
 
@@ -1154,6 +1158,36 @@ function importBackup(file) {
           curEx = null;
           nav('heute');
           toast('Backup geladen');
+        });
+    } catch (e) { infoSheet('Import fehlgeschlagen', e.message); }
+  };
+  r.readAsText(file);
+}
+
+/** Alte Trainings dazuladen (Datei mit meta.kind "gym-merge"). Anders als
+    das Backup ersetzt das nichts: Planung in Core.planMerge, hier nur
+    Rückfrage und Übernahme. */
+function mergeOld(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    $('#fileMerge').value = '';                    // dieselbe Datei soll erneut wählbar sein
+    try {
+      const plan = Core.planMerge(db, JSON.parse(r.result), uid);
+      const skip = plan.skipped.length
+        ? ` ${plan.skipped.length} ${plan.skipped.length === 1 ? 'Tag steht' : 'Tage stehen'} schon in der App und ${plan.skipped.length === 1 ? 'wird' : 'werden'} übersprungen.` : '';
+      if (!plan.sessions.length) { infoSheet('Nichts hinzuzufügen', 'Alle Trainings aus der Datei stehen schon in der App.'); return; }
+      const sets = plan.sessions.reduce((n, se) => n + se.items.reduce((m, it) => m + it.sets.length, 0), 0);
+      const ex = plan.exercises.length
+        ? ` Neu angelegt ${plan.exercises.length === 1 ? 'wird' : 'werden'}: ${plan.exercises.map((e) => e.name).join(', ')}.` : '';
+      askSheet('Alte Trainings hinzufügen',
+        `${nf0.format(plan.sessions.length)} Trainings mit ${nf0.format(sets)} Sätzen kommen dazu.${ex}${skip}`,
+        'Hinzufügen', () => {
+          db.exercises = db.exercises.concat(plan.exercises);
+          db.sessions = db.sessions.concat(plan.sessions);
+          db = Core.normalize(db, { uid, themes: Object.keys(THEMES) });   // sortiert den Verlauf neu
+          save(); closeSheet(); render();
+          toast(`${nf0.format(plan.sessions.length)} Trainings hinzugefügt`);
         });
     } catch (e) { infoSheet('Import fehlgeschlagen', e.message); }
   };
@@ -1518,6 +1552,7 @@ function viewAct(el) {
   else if (act === 'notify') { askNotify(); setTimeout(render, 600); }
   else if (act === 'export') exportBackup();
   else if (act === 'import') $('#fileImport').click();
+  else if (act === 'merge') $('#fileMerge').click();
   else if (act === 'install') installApp();
   else if (act === 'update') checkUpdate();
 }
