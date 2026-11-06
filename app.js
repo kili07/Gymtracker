@@ -25,7 +25,7 @@
 const KEY = 'gym.v1';
 /* Bei jeder Änderung hochzählen: wird in den Einstellungen angezeigt, damit
    sich auf dem Handy prüfen lässt, welche Fassung wirklich läuft. */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.4.0';
 
 const THEME_KEY = 'gym.theme';
 const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Gerätesache, nicht im Backup
@@ -107,6 +107,7 @@ const ICON = {
   note:  lucide('<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/>'),
   info:  lucide('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
 };
+const BW_STEP = 0.1;                  // Körpergewicht: Plus/Minus in 100-g-Schritten
 
 /* ── 2. Daten ───────────────────────────────────────────────── */
 let db = Core.blank();
@@ -364,7 +365,14 @@ function startSession() {
   wake(true);
   animNext = true;
   render();
-  pickExercise(se.id);          // der erste Griff ist immer die Übungswahl
+  /* Erinnerung ans Körpergewicht: einmal je Tag, vor der ersten Übung.
+     Speichern wie Überspringen führen weiter zur Übungswahl, damit die
+     Frage das Training nie aufhält. */
+  if (!Core.bodyWeightOn(db.bodyWeights, se.date)) {
+    bodyWeightSheet({ remind: true, then: () => pickExercise(se.id) });
+  } else {
+    pickExercise(se.id);        // der erste Griff ist immer die Übungswahl
+  }
 }
 
 function endSession() {
@@ -543,9 +551,11 @@ function openSetSheet(sid, exId, idx, back) {
     form = stepper('f_secs', 'Dauer', base.seconds, 5, 's', 0);
   } else if (ex.type === 'bodyweight') {
     form = stepper('f_reps', 'Wiederholungen', base.reps, 1, 'Wdh', 1)
+      + repChips(repSuggest(se, it, exId, base.reps), base.reps)
       + stepper('f_extra', 'Zusatzgewicht', base.extra || 0, step, 'kg', 0);
   } else {
     form = stepper('f_reps', 'Wiederholungen', base.reps, 1, 'Wdh', 1)
+      + repChips(repSuggest(se, it, exId, base.reps), base.reps)
       + stepper('f_weight', 'Gewicht', base.weight, step, 'kg', 0);
   }
   openSheet(isNew ? 'Satz loggen' : `Satz ${idx + 1} ändern`, `
@@ -571,6 +581,16 @@ function openSetSheet(sid, exId, idx, back) {
     render();
   }, 'Speichern');
   if (back) $('#sheetCancel').onclick = back;
+  if (ex.type !== 'time') {
+    const repsIn = $('#f_reps');
+    $('#sheetBody').onclick = (e) => {
+      const c = e.target.closest('[data-rep]');
+      if (c) repsIn.value = nf0.format(+c.dataset.rep);
+      // Nach −/+ am Stepper: der zählt erst im Handler am #sheet hoch, also danach angleichen
+      setTimeout(syncRepChips, 0);
+    };
+    repsIn.addEventListener('input', syncRepChips);
+  }
   if (!isNew) {
     $('#f_del').onclick = () => askSheet('Satz löschen?', 'Der Satz wird aus dem Training entfernt.', 'Löschen', () => {
       it.sets.splice(idx, 1);
@@ -578,6 +598,41 @@ function openSetSheet(sid, exId, idx, back) {
       save(); closeSheet(); render(); toast('Gelöscht');
     }, () => openSetSheet(sid, exId, idx, back), true);
   }
+}
+
+/** Vorschläge für die Wiederholungen: der vorausgefüllte Wert mit zwei
+    darunter und darüber, dazu die Wdh von heute und vom letzten Training
+    dieser Übung. Ohne jeden Wert die üblichen Zahlen. Höchstens acht,
+    aufsteigend, damit die Reihe in eine Zeile am Handy passt. */
+function repSuggest(se, it, exId, reps) {
+  const set = new Set();
+  if (fin(reps) && reps > 0) for (let d = -2; d <= 2; d++) if (reps + d >= 1) set.add(reps + d);
+  const prev = db.sessions.find((x) => x.id !== se.id && x.items.some((y) => y.exerciseId === exId && y.sets.length));
+  const add = (sets) => sets.forEach((st) => { if (fin(st.reps) && st.reps > 0) set.add(Math.round(st.reps)); });
+  add(it.sets);
+  if (prev) add(prev.items.find((y) => y.exerciseId === exId).sets);
+  if (!set.size) [5, 6, 8, 10, 12, 15].forEach((v) => set.add(v));
+  let list = Array.from(set).sort((a, b) => a - b);
+  // Zu viele: die nächsten am vorausgefüllten Wert behalten
+  if (list.length > 8 && fin(reps)) list = list.sort((a, b) => Math.abs(a - reps) - Math.abs(b - reps)).slice(0, 8).sort((a, b) => a - b);
+  return list.slice(0, 8);
+}
+
+function repChips(list, cur) {
+  return `<div class="chips chips-sheet chips-reps" role="group" aria-label="Wiederholungen wählen">${list.map((v) =>
+    `<button class="chip num${v === cur ? ' on' : ''}" data-rep="${v}" aria-pressed="${v === cur}">${nf0.format(v)}</button>`).join('')}</div>`;
+}
+
+/** Markierung der Vorschläge an den Wert im Feld angleichen. */
+function syncRepChips() {
+  const el = $('#f_reps');
+  if (!el) return;
+  const v = num(el.value);
+  $$('[data-rep]', $('#sheetBody')).forEach((c) => {
+    const on = +c.dataset.rep === v;
+    c.classList.toggle('on', on);
+    c.setAttribute('aria-pressed', String(on));
+  });
 }
 
 /** Sätze einer Übung in einer Einheit: ändern, nachtragen, Übung entfernen. */
@@ -621,13 +676,14 @@ function pickExercise(sid, back) {
     <button class="btn btn-block" id="f_newex">${ICON.plus}Neue Übung anlegen</button>
     <div id="pickList"></div>
   `, null);
+  $('#sheet').classList.add('sheet-tall');   // feste Höhe: die Liste springt beim Tippen nicht
   if (back) $('#sheetCancel').onclick = back;
   const list = $('#pickList');
   /* Nur die Liste neu schreiben, nicht das Sheet: ein Neuaufbau nähme dem
      Suchfeld bei jedem Buchstaben den Fokus. */
   const draw = (q) => { list.innerHTML = pickRows(se, q); };
   draw('');
-  $('#f_q').oninput = (e) => draw(e.target.value);
+  $('#f_q').oninput = (e) => { draw(e.target.value); $('#sheetBody').scrollTop = 0; };
   $('#f_newex').onclick = () => newExercise((id) => {
     itemOf(se, id, true); save();
     openSetSheet(sid, id, null, () => pickExercise(sid, back));
@@ -640,6 +696,20 @@ function pickExercise(sid, back) {
     save();
     openSetSheet(sid, id, null, () => pickExercise(sid, back));
   };
+}
+
+/** Übungen nach Muskelgruppe, Gruppen und Namen alphabetisch, ohne Gruppe
+    am Ende. Für Übungswahl und Übungsliste. */
+const collator = new Intl.Collator('de-DE', { sensitivity: 'base' });
+function byGroup(list) {
+  const groups = new Map();
+  list.forEach((e) => {
+    const g = e.group || 'Ohne Gruppe';
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(e);
+  });
+  return Array.from(groups, ([g, l]) => ({ g, list: l.sort((a, b) => collator.compare(a.name, b.name)) }))
+    .sort((a, b) => (a.g === 'Ohne Gruppe') - (b.g === 'Ohne Gruppe') || collator.compare(a.g, b.g));
 }
 
 function pickRows(se, q) {
@@ -658,17 +728,18 @@ function pickRows(se, q) {
   /* Wird gesucht, steht jeder Treffer in einer Liste: die Aufteilung in
      „zuletzt genutzt" und „alle" würde sonst genau die gesuchte Übung
      verschlucken, wenn sie in beiden Gruppen landet. */
-  if (needle) return `<div class="lbl">Treffer</div><div class="rows">${open.map(row).join('')}</div>`;
+  if (needle) return `<div class="lbl">Treffer</div><div class="rows">${byGroup(open).map((b) => b.list).flat().map(row).join('')}</div>`;
   // Zuletzt genutzte zuerst: im Studio greift man meist wieder zum Gleichen
   const recent = [];
   db.sessions.forEach((s) => s.items.forEach((it) => {
     if (recent.indexOf(it.exerciseId) < 0) recent.push(it.exerciseId);
   }));
   const top = recent.map((id) => open.find((e) => e.id === id)).filter(Boolean).slice(0, 5);
-  const rest = open.filter((e) => top.indexOf(e) < 0);
   let out = '';
   if (top.length) out += `<div class="lbl">Zuletzt genutzt</div><div class="rows">${top.map(row).join('')}</div>`;
-  if (rest.length) out += `<div class="lbl">Alle Übungen</div><div class="rows">${rest.map(row).join('')}</div>`;
+  /* Darunter alle nach Muskelgruppe. Die zuletzt genutzten stehen dort noch
+     einmal: sonst fehlte einer Gruppe genau die Übung, die man sucht. */
+  out += byGroup(open).map((b) => `<div class="lbl">${esc(b.g)}</div><div class="rows">${b.list.map(row).join('')}</div>`).join('');
   return out;
 }
 
@@ -703,7 +774,7 @@ function renderVerlauf() {
   const el = $('#view-verlauf');
   $('#topSub').textContent = db.sessions.length ? plural(db.sessions.length, 'Training', 'Trainings') : '';
   if (!db.sessions.length) {
-    el.innerHTML = `<div class="empty"><h2>Noch kein Training im Verlauf</h2>
+    el.innerHTML = `${bodyWeightCard()}<div class="empty"><h2>Noch kein Training im Verlauf</h2>
       <p>Sobald Du ein Training beendet hast, steht es hier mit allen Sätzen.</p>
       <button class="btn btn-primary" data-nav="heute">Zu Heute</button></div>`;
     return;
@@ -728,7 +799,7 @@ function renderVerlauf() {
     </button>`;
   }).join('');
 
-  el.innerHTML = `<div class="sec-h">Sätze je Woche</div>
+  el.innerHTML = `${bodyWeightCard()}<div class="sec-h">Sätze je Woche</div>
     <div class="card">${chartBox(bars, (i) => weeks[i]
       ? `<b>${nf0.format(weeks[i].sets)}</b> ${weeks[i].sets === 1 ? 'Satz' : 'Sätze'} · ${plural(weeks[i].sessions, 'Training', 'Trainings')} · Woche ab ${esc(dfMed.format(new Date(weeks[i].start)))}`
       : null, '<span>Antippen zum Ablesen</span>')}
@@ -741,6 +812,116 @@ function renderVerlauf() {
     </div>
     <div class="sec-h">Alle Trainings</div>
     <div class="rows">${rows}</div>`;
+}
+
+/** Karte Körpergewicht oben im Verlauf: aktueller Wert, Änderung in 30
+    Tagen, Verlauf der letzten Einträge. Zeigt, bewertet nicht. */
+function bodyWeightCard() {
+  const list = db.bodyWeights;
+  const head = '<div class="sec-h">Körpergewicht</div>';
+  if (!list.length) {
+    return `${head}<div class="card">
+      <p class="note">Noch kein Eintrag. Beim Start eines Trainings fragt die App einmal am Tag danach.</p>
+      <button class="btn btn-block" data-act="bwadd">${ICON.plus}Gewicht eintragen</button></div>`;
+  }
+  const cur = list[0];
+  // Vergleich mit dem jüngsten Eintrag, der mindestens 30 Tage älter ist
+  const ref = list.find((b) => Date.parse(cur.date) - Date.parse(b.date) >= 30 * 86400000) || null;
+  const diff = ref ? Math.round((cur.kg - ref.kg) * 10) / 10 : null;
+  const pts = list.slice(0, 30).reverse();           // höchstens 30 Einträge, alt nach neu
+  const fmt = (v) => nfa.format(v);
+  let chart = '';
+  if (pts.length >= 2) {
+    const svg = Charts.line({ vals: pts.map((b) => b.kg), labels: pts.map((b) => dfAxis.format(new Date(b.date))), fmtY: fmt });
+    chart = chartBox(svg, (i) => (pts[i]
+      ? `<b>${esc(fmt(pts[i].kg))}</b> kg <span>${esc(dfMed.format(new Date(pts[i].date)))}</span>` : null),
+    '<span>Antippen zum Ablesen</span>');
+  }
+  const sign = diff == null ? '' : (diff > 0 ? '+' : (diff < 0 ? '−' : '±'));
+  return `${head}<div class="card">
+    ${chart}
+    <div class="stats${chart ? '' : ' stats-top'}">
+      <div><span class="lbl">Aktuell</span><span class="num">${countNum(cur.kg, true)}<small>kg</small></span></div>
+      <div><span class="lbl">30 Tage</span><span class="num">${diff == null ? '–' : esc(sign + nf1.format(Math.abs(diff)))}${diff == null ? '' : '<small>kg</small>'}</span></div>
+      <div><span class="lbl">Einträge</span><span class="num">${countNum(list.length)}</span></div>
+    </div>
+    <p class="note">Zuletzt am ${esc(dfMed.format(new Date(cur.date)))}${ref ? `, verglichen mit ${esc(dfMed.format(new Date(ref.date)))}` : ''}.</p>
+    <div class="btn-row">
+      <button class="btn" data-act="bwadd">${ICON.plus}Eintragen</button>
+      <button class="btn" data-act="bwlist">Alle Einträge</button>
+    </div></div>`;
+}
+
+/** Körpergewicht eintragen oder ändern.
+    opts.remind: Erinnerung beim Trainingsstart (heute, mit Überspringen).
+    opts.date:   ISO eines vorhandenen Eintrags zum Ändern (mit Löschen).
+    opts.then:   läuft nach Speichern, Überspringen und Abbrechen.
+    opts.back:   Rückweg zum vorherigen Sheet. */
+function bodyWeightSheet(opts) {
+  opts = opts || {};
+  const editing = opts.date ? Core.bodyWeightOn(db.bodyWeights, opts.date) : null;
+  const today = new Date().toISOString();
+  const preset = editing || Core.bodyWeightOn(db.bodyWeights, today) || db.bodyWeights[0] || null;
+  const last = db.bodyWeights[0];
+  const after = () => { if (opts.then) opts.then(); else closeSheet(); };
+  const reopen = () => bodyWeightSheet(opts);
+  openSheet(opts.remind ? 'Körpergewicht heute?' : (editing ? 'Eintrag ändern' : 'Körpergewicht'), `
+    ${opts.remind ? '' : `<label>Tag<input id="f_bwdate" type="date" max="${esc(localDate(today))}" value="${esc(localDate(editing ? editing.date : today))}"></label>`}
+    ${stepper('f_bw', 'Körpergewicht', preset ? preset.kg : null, BW_STEP, 'kg', 0)}
+    ${last && !editing ? `<p class="note">Zuletzt ${esc(kg(last.kg))} am ${esc(dfMed.format(new Date(last.date)))}.</p>` : ''}
+    ${opts.remind ? '<button class="btn btn-block" id="f_bwskip">Überspringen</button>' : ''}
+    ${editing ? `<button class="btn btn-danger btn-block" id="f_bwdel">${ICON.trash}Eintrag löschen</button>` : ''}
+  `, () => {
+    const v = num($('#f_bw').value);
+    if (v < 20 || v > 400) { toast('Gewicht zwischen 20 und 400 kg eintragen'); return; }
+    let iso = today;
+    const dv = $('#f_bwdate') && $('#f_bwdate').value;
+    if (dv) {
+      // Mittag des gewählten Tages: keine Zeitzone schiebt ihn auf den Vortag
+      const d = new Date(dv + 'T12:00:00');
+      if (localDate(d.toISOString()) !== localDate(today)) iso = d.toISOString();
+    }
+    // Beim Ändern auf einen anderen Tag den alten Eintrag nicht stehen lassen
+    if (editing && Core.dayKey(editing.date) !== Core.dayKey(iso)) {
+      db.bodyWeights = db.bodyWeights.filter((b) => b !== editing);
+    }
+    db.bodyWeights = Core.setBodyWeight(db.bodyWeights, iso, v);
+    save(); render(); toast(`Körpergewicht: ${kg(Math.round(v * 10) / 10)}`);
+    after();
+  }, 'Speichern');
+  $('#sheetCancel').onclick = opts.back || after;
+  if (opts.remind) $('#f_bwskip').onclick = after;
+  if (editing) {
+    $('#f_bwdel').onclick = () => askSheet('Eintrag löschen?',
+      `${kg(editing.kg)} vom ${dfMed.format(new Date(editing.date))} wird gelöscht.`, 'Löschen', () => {
+        db.bodyWeights = db.bodyWeights.filter((b) => b !== editing);
+        save(); render(); toast('Gelöscht');
+        if (opts.back) opts.back(); else closeSheet();
+      }, reopen, true);
+  }
+}
+
+/** Alle Einträge, neueste zuerst; antippen zum Ändern oder Löschen. */
+function bodyWeightList() {
+  const reopen = () => bodyWeightList();
+  const rows = db.bodyWeights.map((b, i) => {
+    const prev = db.bodyWeights[i + 1];
+    const d = prev ? Math.round((b.kg - prev.kg) * 10) / 10 : null;
+    const dTxt = d == null || d === 0 ? '' : ` · ${d > 0 ? '+' : '−'}${nf1.format(Math.abs(d))} kg`;
+    return `<button class="row" data-bw="${esc(b.date)}">
+      <span class="grow"><span class="t num">${esc(kg(b.kg))}</span>
+      <span class="sub">${esc(dfLong.format(new Date(b.date)))}${esc(dTxt)}</span></span>${ICON.pencil}
+    </button>`;
+  }).join('');
+  openSheet('Körpergewicht', `
+    <button class="btn btn-primary btn-block" id="bw_add">${ICON.plus}Eintrag nachtragen</button>
+    ${rows ? `<div class="rows">${rows}</div>` : '<p class="dlg-t">Noch kein Eintrag.</p>'}
+  `, null);
+  $('#bw_add').onclick = () => bodyWeightSheet({ back: reopen, then: reopen });
+  $('#sheetBody').onclick = (e) => {
+    const r = e.target.closest('[data-bw]');
+    if (r) bodyWeightSheet({ date: r.dataset.bw, back: reopen, then: reopen });
+  };
 }
 
 const extraLabel = (v) => { const e = EXTRAS.find((x) => x[0] === v); return e ? e[1] : v; };
@@ -836,14 +1017,7 @@ function exListHtml() {
       <p>${needle ? 'Andere Schreibweise versuchen – oder die Übung neu anlegen.' : 'Lege Deine erste Übung an.'}</p>
       <button class="btn btn-primary" data-act="newex">${ICON.plus}Neue Übung</button></div>`;
   }
-  const groups = [];
-  open.forEach((e) => {
-    const g = e.group || 'Ohne Gruppe';
-    let b = groups.find((x) => x.g === g);
-    if (!b) { b = { g, list: [] }; groups.push(b); }
-    b.list.push(e);
-  });
-  let out = groups.map((b) => `<div class="sec-h">${esc(b.g)}</div><div class="rows">${b.list.map(exRow).join('')}</div>`).join('');
+  let out = byGroup(open).map((b) => `<div class="sec-h">${esc(b.g)}</div><div class="rows">${b.list.map(exRow).join('')}</div>`).join('');
   if (arch.length) out += `<div class="sec-h">Archiviert</div><div class="rows">${arch.map(exRow).join('')}</div>`;
   return out;
 }
@@ -1070,7 +1244,7 @@ function renderEinst() {
     </button>
     <div class="card">
       <div class="lbl">Gewicht in Schritten von</div>
-      ${seg('step', [[1.25, '1,25 kg'], [2.5, '2,5 kg'], [5, '5 kg']], db.settings.weightStep)}
+      ${seg('step', [[1, '1 kg'], [1.25, '1,25 kg'], [2.5, '2,5 kg'], [5, '5 kg']], db.settings.weightStep)}
       <p class="note">Gilt für die Plus- und Minus-Knöpfe. Ins Feld lässt sich jeder Wert eintragen.</p>
     </div>
     <button class="row card" data-nav="uebungen">
@@ -1104,7 +1278,7 @@ function renderEinst() {
     <div class="card">
       <button class="btn btn-block hidden" id="btnInstall" data-act="install">App installieren</button>
       <button class="btn btn-block" data-act="update">Nach Update suchen</button>
-      <p class="note">Gymtracker ${esc(APP_VERSION)} · ${plural(db.sessions.length, 'Training', 'Trainings')}, ${plural(db.exercises.length, 'Übung', 'Übungen')}</p>
+      <p class="note">Gymtracker ${esc(APP_VERSION)} · ${plural(db.sessions.length, 'Training', 'Trainings')}, ${plural(db.exercises.length, 'Übung', 'Übungen')}, ${plural(db.bodyWeights.length, 'Gewichtseintrag', 'Gewichtseinträge')}</p>
     </div>`;
   $('#fileImport').onchange = (e) => importBackup(e.target.files[0]);
   $('#fileMerge').onchange = (e) => mergeOld(e.target.files[0]);
@@ -1213,7 +1387,7 @@ function openSheet(title, html, saveFn, saveLabel) {
   const btn = $('#sheetSave');
   btn.classList.toggle('hidden', !saveFn);
   btn.textContent = saveLabel || 'Sichern';
-  $('#sheet').classList.remove('hidden');
+  $('#sheet').classList.remove('hidden', 'sheet-tall');
   $('#scrim').classList.remove('hidden');
   $('#sheetBody').scrollTop = 0;
 }
@@ -1490,6 +1664,25 @@ function bumpStep(spec) {
 }
 
 /* ── 15. Verdrahten, Start ──────────────────────────────────── */
+/** Sheet über der Bildschirmtastatur halten. Android legt die Tastatur über
+    die Seite, ein unten festgemachtes Sheet läge dann mit Suchtreffern und
+    Knöpfen darunter. visualViewport kennt den sichtbaren Teil: das Sheet
+    rückt um die Tastaturhöhe hoch und wird nie höher als der Rest. */
+function wireKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const root = document.documentElement.style;
+  const fit = () => {
+    const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    root.setProperty('--kb', kb + 'px');
+    root.setProperty('--vvh', Math.round(vv.height) + 'px');
+    document.body.classList.toggle('kb-open', kb > 80);
+  };
+  vv.addEventListener('resize', fit);
+  vv.addEventListener('scroll', fit);
+  fit();
+}
+
 /** Klicks per Delegation am body, nicht einzeln pro gerenderter Zeile.
     Klicks im Sheet behandelt das Sheet selbst (#sheetBody.onclick), nur die
     Stepper laufen überall gleich. */
@@ -1551,7 +1744,9 @@ function viewAct(el) {
     if (!se) return;
     itemOf(se, curEx, true); save();
     openSetSheet(se.id, curEx);
-  } else if (act === 'restset') restSheet();
+  } else if (act === 'bwadd') bodyWeightSheet();
+  else if (act === 'bwlist') bodyWeightList();
+  else if (act === 'restset') restSheet();
   else if (act === 'notify') { askNotify(); setTimeout(render, 600); }
   else if (act === 'export') exportBackup();
   else if (act === 'import') $('#fileImport').click();
@@ -1566,6 +1761,7 @@ applyTheme(db.settings.theme);
    still verwerfen, nicht nachträglich meldenueber. */
 if (db.rest && restLeft() <= 0) { db.rest = null; save(); }
 wire();
+wireKeyboard();
 wireBack();
 nav(restoreViewState());
 if (db.active) wake(true);

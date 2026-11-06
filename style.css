@@ -196,6 +196,18 @@ input:focus,select:focus{outline:none; border-color:var(--accent)}
   border-top:1px solid var(--line-2); padding-bottom:env(safe-area-inset-bottom, 0px);
   animation:rise var(--t-mid) var(--ease-out);
 }
+.sheet{bottom:var(--kb, 0px); max-height:calc(var(--vvh, 100dvh) * .92)}
+/* Übungswahl: feste Höhe, damit die Liste beim Tippen nicht springt */
+.sheet.sheet-tall{height:calc(var(--vvh, 100dvh) * .92)}
+.sheet.sheet-tall .sheet-body{flex:1}
+/* Bei offener Tastatur zählt jeder Pixel: kein Abstand für die Home-Leiste */
+.kb-open .sheet{padding-bottom:0}
+/* Suchfeld im Sheet bleibt oben stehen, die Treffer laufen darunter */
+.sheet-body > .field-ic{position:sticky; top:calc(-1 * var(--s2)); z-index:1; background:var(--bg); margin:calc(-1 * var(--s2)) calc(-1 * var(--pad)) var(--s2); padding:var(--s2) var(--pad) 0}
+.sheet-body > .field-ic > svg{left:calc(var(--pad) + 14px); top:calc(50% + var(--s2) / 2)}
+/* Wiederholungs-Vorschläge: groß genug für den Daumen */
+.chips-reps{margin-top:calc(-1 * var(--s1)); margin-bottom:var(--s3)}
+.chips-reps .chip{min-width:44px; justify-content:center; font-size:var(--fs-body, 16px)}
 .sheet-grip{width:36px; height:4px; border-radius:2px; background:var(--line-2); margin:var(--s1) auto 0; flex:none}
 .sheet-head{display:flex; align-items:center; gap:var(--s1); padding:0 var(--s1); border-bottom:1px solid var(--line); flex:none; min-height:52px}
 .sheet-head strong{flex:1; text-align:center; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}

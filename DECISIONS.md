@@ -15,6 +15,11 @@
 - **`weekBuckets()` rechnet rückwärts in Kalendertagen (`setDate`), nicht in Millisekunden.** Bei der Umstellung auf Sommerzeit ist eine Woche nur 167 Stunden lang; feste 7 × 86 400 000 ms landen dann am Sonntag 23:00 und damit eine Woche zu weit zurück. Die Folge war, dass eine ganze Woche aus dem Diagramm fiel und ihre Trainings still nicht mitgezählt wurden — in Europe/Berlin die Woche vom 23.03.2026. `tests/core-test.js` prüft das um alle vier Umstellungen 2026 herum.
 - **Die Testdaten sind gesät** (`tests/daten.js`, mulberry32): derselbe Aufruf gibt denselben Datensatz, sonst wäre ein roter Test nicht nachstellbar. Die Saat ist über `GYM_SEED=` vor `node tests/core-test.js` umstellbar, weil die Tests sonst unbemerkt an einer einzigen Zufallsfolge hängen — vier von zehn Saaten haben beim ersten Durchlauf einen Test aufgedeckt, der nur mit Saat 42 grün war.
 - **In der laufenden Woche ohne Training zeichnet `bars()` keinen Balken**, markiert die Woche an der Beschriftung aber trotzdem. An einem Ruhetag ist also ein markierter, leerer Wochenplatz zu sehen — so gewollt, ein Balken der Höhe 0 wäre von einem sehr kleinen Balken nicht zu unterscheiden.
+- **Körpergewicht als eigene Liste `bodyWeights` (06.11.2026), nicht am Training.** Ein Eintrag je Tag (`{date, kg}`, `Core.setBodyWeight` ersetzt statt zu doppeln), damit auch Tage ohne Training oder Nachträge gehen. Die Erinnerung kommt beim Start eines Trainings, nur wenn für heute noch nichts steht, und lässt sich überspringen: Speichern, Überspringen und Abbrechen führen alle weiter zur Übungswahl. Werte unter 20 oder über 400 kg gelten als Tippfehler. Die Karte steht oben im Verlauf und zeigt Wert, Änderung gegen den Eintrag von vor mindestens 30 Tagen und die letzten 30 Einträge, ohne Urteil.
+- **Gewichtsschritt 1 kg als vierte Option (06.11.2026)** neben 1,25, 2,5 und 5 kg, für Maschinen mit 1-kg-Stufen.
+- **Übungswahl nach Muskelgruppe (06.11.2026).** Unter „Zuletzt genutzt" stehen alle Übungen nach Gruppe, Gruppen und Namen alphabetisch, „Ohne Gruppe" zuletzt (`byGroup()`). Die zuletzt genutzten stehen in ihrer Gruppe noch einmal, sonst wäre eine Gruppe unvollständig. Die Übungsliste nutzt dieselbe Sortierung.
+- **Wiederholungs-Vorschläge zum Antippen (06.11.2026).** Unter dem Feld Wdh stehen bis zu acht Zahlen: der vorausgefüllte Wert ±2 und die Wdh von heute und vom letzten Training der Übung, ohne Verlauf 5, 6, 8, 10, 12, 15. Antippen setzt nur den Wert, gespeichert wird weiter über „Speichern", damit ein Fehltipp keinen Satz anlegt.
+- **Sheet über der Tastatur (06.11.2026).** Android legt die Tastatur über die Seite, das unten festgemachte Sheet lag mit den Suchtreffern darunter. `wireKeyboard()` liest `visualViewport` und setzt `--kb` (Abstand nach unten) und `--vvh` (sichtbare Höhe), das Sheet rückt hoch und schrumpft. Bewusst nicht `interactive-widget=resizes-content` im Viewport: das schöbe auch die Tableiste bei jeder Eingabe über die Tastatur. In der Übungswahl bleibt das Suchfeld oben stehen (sticky), die Treffer laufen darunter.
 - **Bestwerte zeigen, nicht bewerten.** Die App zeigt Verlauf, Höchstwerte und unter jedem Diagramm einen Satz zur Einordnung; sie gibt keine Empfehlung und kein Urteil über ein Training ab.
 
 ## Abweichungen vom Skill
@@ -35,6 +40,8 @@ Nur am Handy prüfbar:
 - [ ] Installieren-Knopf erscheint, Chrome schickt das echte `beforeinstallprompt`
 - [ ] Animationen laufen flüssig; mit „Bewegung reduzieren" bewegt sich nichts
 - [ ] Weichzeichner der unteren Leiste beim Scrollen
+- [ ] Übungswahl: bei offener Tastatur sind die Suchtreffer sichtbar (Chrome Android, `visualViewport`)
+- [ ] Erinnerung ans Körpergewicht erscheint beim ersten Trainingsstart des Tages und nicht beim zweiten
 
 Sonstiges: nichts offen. Geprüft und in Ordnung: Pausenleiste und untere Leiste sitzen
 in 375 px exakt aneinander statt übereinander (Pausenleiste 576–636, Tableiste 636–700),

@@ -81,6 +81,7 @@ function blank() {
       id: e.id, name: e.name, group: e.group, type: e.type, archived: false,
     })),
     sessions: [],        // {id, date (ISO), end (ISO|null), note, extras[], items[{exerciseId, sets[]}]}
+    bodyWeights: [],     // Körpergewicht: {date (ISO), kg}, höchstens ein Eintrag je Tag, neueste zuerst
     settings: {
       restSeconds: 90,   // Pausenlänge nach einem Satz
       weightStep: 1.25,  // Schrittweite der Plus/Minus-Knöpfe in kg
@@ -173,6 +174,8 @@ function normalize(src, opts) {
     })
     .sort((a, b) => t0(b.date) - t0(a.date));     // neueste zuerst, wie die Verlaufsliste
 
+  d.bodyWeights = cleanBodyWeights(d.bodyWeights);
+
   // Eine laufende Einheit, die es nicht mehr gibt, würde die Ansicht „Heute" blockieren
   if (!d.sessions.some((se) => se.id === d.active)) d.active = null;
 
@@ -180,6 +183,43 @@ function normalize(src, opts) {
   d.rest = end ? { endsAt: Math.round(end), total: posOrNull(d.rest.total) || base.settings.restSeconds } : null;
   d.v = 1;
   return d;
+}
+
+/** Tag als Schlüssel in Ortszeit: zwei Einträge am selben Tag sind einer,
+    egal zu welcher Uhrzeit. */
+function dayKey(iso) {
+  const d = new Date(iso);
+  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+
+/** Körpergewicht aus fremden Daten: nur 20 bis 400 kg (Tippfehler wie
+    „7,5" statt „75" fliegen raus), je Tag nur der jüngste Eintrag,
+    neueste zuerst. */
+function cleanBodyWeights(list) {
+  const byDay = new Map();
+  (Array.isArray(list) ? list : []).forEach((b) => {
+    if (!b || typeof b !== 'object' || !isFinite(Date.parse(b.date))) return;
+    const kg = posOrNull(b.kg);
+    if (kg == null || kg < 20 || kg > 400) return;
+    const date = new Date(b.date).toISOString();
+    const k = dayKey(date);
+    const have = byDay.get(k);
+    if (!have || t0(date) > t0(have.date)) byDay.set(k, { date, kg: Math.round(kg * 10) / 10 });
+  });
+  return Array.from(byDay.values()).sort((a, b) => t0(b.date) - t0(a.date));
+}
+
+/** Eintrag des Tages, an dem `iso` liegt, sonst null. */
+function bodyWeightOn(list, iso) {
+  const k = dayKey(iso);
+  return (list || []).find((b) => dayKey(b.date) === k) || null;
+}
+
+/** Körpergewicht des Tages setzen: ersetzt einen vorhandenen Eintrag
+    desselben Tages statt einen zweiten anzulegen. Gibt die neue Liste zurück. */
+function setBodyWeight(list, iso, kg) {
+  const k = dayKey(iso);
+  return cleanBodyWeights((list || []).filter((b) => dayKey(b.date) !== k).concat([{ date: iso, kg }]));
 }
 
 /* ── 3b. Alte Trainings dazuladen ──────────────────────────── */
@@ -403,7 +443,8 @@ const typeMap = (exercises) => {
 };
 
 return {
-  TYPES, SEED, blank, normalize, cleanSet, planMerge, clock, epley, posOrNull,
+  TYPES, SEED, blank, normalize, cleanSet, planMerge, dayKey,
+  cleanBodyWeights, bodyWeightOn, setBodyWeight, clock, epley, posOrNull,
   setVolume, sessionStats, lastSet, exercisePoints, bests,
   inRange, trend, weekStart, weekBuckets, typeMap,
 };

@@ -4,11 +4,11 @@ Trainingslogger fürs Handy: Sätze, Wiederholungen und Gewicht während des Tra
 
 ## Was die App kann
 
-**Heute** — Training starten, Übung wählen (Suche, zuletzt genutzte oben, neue Übung direkt anlegen), Satz für Satz loggen. Wiederholungen und Gewicht stehen vom letzten Mal schon im Formular, Gewicht lässt sich in 1,25-kg-Schritten ändern oder frei eintippen. Zu jeder Einheit gehören eine Notiz und Markierungen (Sauna, Cardio, Dehnen).
+**Heute** — Training starten, beim ersten Training des Tages kurz das Körpergewicht eintragen (oder überspringen), Übung wählen (Suche, zuletzt genutzte oben, darunter alle nach Muskelgruppe, neue Übung direkt anlegen), Satz für Satz loggen. Wiederholungen und Gewicht stehen vom letzten Mal schon im Formular, passende Wiederholungszahlen lassen sich direkt antippen, Gewicht lässt sich in Schritten von 1, 1,25, 2,5 oder 5 kg ändern oder frei eintippen. Zu jeder Einheit gehören eine Notiz und Markierungen (Sauna, Cardio, Dehnen).
 
 **Pause** — Nach jedem gespeicherten Satz läuft die Pause automatisch, standardmäßig 1:30. Die Leiste über der Tableiste zeigt die Restzeit, ±15 s und Überspringen. Gespeichert wird die Endzeit, nicht die Restzeit: Die Pause läuft deshalb richtig weiter, wenn der Bildschirm ausgeht oder die App im Hintergrund liegt. Am Ende vibriert das Handy und — wenn erlaubt — kommt eine Benachrichtigung. Während eines Trainings hält die App den Bildschirm wach.
 
-**Verlauf** — Sätze je Woche als Balken, Kennwerte der letzten 30 Tage, darunter alle Trainings. Ein Tipp öffnet die Einheit: Sätze ändern oder nachtragen, Übung entfernen, Notiz, Datum, Training löschen.
+**Verlauf** — Körpergewicht mit Verlauf, aktuellem Wert und Änderung in 30 Tagen (Einträge nachtragen, ändern, löschen), Sätze je Woche als Balken, Kennwerte der letzten 30 Tage, darunter alle Trainings. Ein Tipp öffnet die Einheit: Sätze ändern oder nachtragen, Übung entfernen, Notiz, Datum, Training löschen.
 
 **Übungen** — Alle Übungen nach Muskelgruppe, mit dem letzten Wert und einer kleinen Verlaufslinie. Ein Tipp öffnet die Übung mit Bestwerten und Diagrammen über 3 Monate, 1 Jahr oder alles:
 
