@@ -25,7 +25,7 @@
 const KEY = 'gym.v1';
 /* Bei jeder Änderung hochzählen: wird in den Einstellungen angezeigt, damit
    sich auf dem Handy prüfen lässt, welche Fassung wirklich läuft. */
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 
 const THEME_KEY = 'gym.theme';
 const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Gerätesache, nicht im Backup
@@ -63,6 +63,7 @@ const dfMed = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short',
 const dfAxis = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'numeric' });
 const dfShort = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'numeric', year: '2-digit' });
 const dfClock = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
+const dfToday = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'short' });
 
 /* Eingaben können deutsches Komma enthalten, parseFloat allein verschluckt es. */
 const num = (v) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
@@ -106,6 +107,11 @@ const ICON = {
   restore: lucide('<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h2"/><path d="M20 8v11a2 2 0 0 1-2 2h-2"/><path d="m9 15 3-3 3 3"/><path d="M12 12v9"/>'),
   note:  lucide('<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/>'),
   info:  lucide('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+  check: lucide('<path d="M20 6 9 17l-5-5"/>'),
+  flame: lucide('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>'),
+  trophy: lucide('<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>'),
+  up:    lucide('<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>'),
+  down:  lucide('<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>'),
 };
 const BW_STEP = 0.1;                  // Körpergewicht: Plus/Minus in 100-g-Schritten
 
@@ -173,6 +179,7 @@ let view = 'heute';
 const VIEW_KEY = 'gym.view';
 let range = 90;              // Zeitraum der Übungsansicht in Tagen, 0 = alles
 let curEx = null;            // Übung auf der Unterseite
+let metric = null;           // Kennzahl im Diagramm der Übungsseite, null = erste des Typs
 
 function saveViewState() {
   try { sessionStorage.setItem(VIEW_KEY, JSON.stringify({ view, range, curEx })); }
@@ -214,7 +221,9 @@ let rid = 0;
     behält Fokus). */
 function render() {
   for (const k of readers.keys()) if (k[0] === 'v') readers.delete(k);
-  $('#viewTitle').textContent = view === 'uebung' && curEx ? exName(curEx) : (TITLES[view] || '');
+  /* Auf Heute steht das Datum: „Heute" wiederholte nur den Namen des Tabs. */
+  $('#viewTitle').textContent = view === 'uebung' && curEx ? exName(curEx)
+    : view === 'heute' ? dfToday.format(new Date()) : (TITLES[view] || '');
   if (view === 'heute') renderHeute();
   else if (view === 'verlauf') renderVerlauf();
   else if (view === 'uebungen') renderUebungen();
@@ -286,31 +295,139 @@ function noSession() {
       <button class="btn btn-primary" data-act="start">${ICON.play}Training starten</button>
     </div>`;
   }
-  const week = Core.weekBuckets(db.sessions, 1, types)[0];
-  const last = db.sessions[0];
-  const st = Core.sessionStats(last, types);
-  return `<button class="btn btn-primary btn-block btn-xl" data-act="start">${ICON.play}Training starten</button>
-    <div class="sec-h">Diese Woche</div>
-    <div class="card">
-      <div class="stats stats-top">
-        <div><span class="lbl">Trainings</span><span class="num">${countNum(week.sessions)}</span></div>
-        <div><span class="lbl">Sätze</span><span class="num">${countNum(week.sets)}</span></div>
-        <div><span class="lbl">Volumen</span><span class="num">${countNum(week.volume)}<small>kg</small></span></div>
-      </div>
+  const last = db.sessions.find((s) => s.id !== db.active) || db.sessions[0];
+  return `${weekCard(types)}
+    <button class="btn btn-primary btn-block btn-xl" data-act="start">${ICON.play}Training starten</button>
+    ${lastCard(last, types)}`;
+}
+
+/* Kurzer Wochentag für die Wochenleiste, Montag zuerst. */
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+/** Wochenkarte: Tage als Leiste (trainiert, heute, kommend), dazu Zahl der
+    Trainings und Wochen in Folge. Ersetzt die Nullen-Reihe, die montags
+    immer leer war. Zeigt, bewertet nicht. */
+function weekCard(types) {
+  const now = Date.now();
+  const start = Core.weekStart(now);
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const days = WD.map((wd, i) => {
+    const d = new Date(start); d.setDate(d.getDate() + i);
+    return { wd, t: d.getTime(), n: 0 };
+  });
+  db.sessions.forEach((se) => {
+    const d = new Date(se.date); d.setHours(0, 0, 0, 0);
+    const day = days.find((x) => x.t === d.getTime());
+    if (day) day.n++;
+  });
+  const done = days.filter((d) => d.n).length;
+  const weeks = Core.weekBuckets(db.sessions, 52, types, now);
+  const prev = weeks[weeks.length - 2];
+  // Wochen in Folge: die laufende zählt nur, wenn schon trainiert wurde
+  let streak = 0;
+  for (let i = weeks.length - (weeks[weeks.length - 1].sessions ? 1 : 2); i >= 0 && weeks[i].sessions; i--) streak++;
+  const cells = days.map((d) => {
+    const cls = d.n ? 'on' : (d.t === today.getTime() ? 'today' : (d.t > today.getTime() ? 'next' : ''));
+    const label = `${d.wd}: ${d.n ? plural(d.n, 'Training', 'Trainings') : 'kein Training'}`;
+    return `<li class="wd ${cls}" aria-label="${esc(label)}"><span class="dot">${d.n ? ICON.check : ''}</span><span class="wd-l">${d.wd}</span></li>`;
+  }).join('');
+  return `<div class="card weekcard">
+    <div class="wk-top">
+      <span class="grow"><span class="lbl">Diese Woche</span>
+      <span class="wk-big"><span class="num">${countNum(done)}</span><span class="wk-unit">${done === 1 ? 'Training' : 'Trainings'}</span></span></span>
+      <span class="wk-side">
+        ${streak > 1 ? `<span class="pill">${ICON.flame}${esc(nf0.format(streak))} Wochen am Stück</span>` : ''}
+        <span class="sub">Letzte Woche ${esc(nf0.format(prev ? prev.sessions : 0))}</span>
+      </span>
     </div>
-    <div class="sec-h">Letztes Training</div>
-    <button class="row card" data-act="session" data-id="${esc(last.id)}">
-      <span class="grow"><span class="t">${esc(dfDay.format(new Date(last.date)))}</span>
-      <span class="sub">${esc(sessionLine(st))}</span></span>${ICON.chev}
-    </button>
-    ${last.items.length ? `<div class="card"><div class="lbl">Übungen</div><p class="note">${esc(last.items.map((it) => exName(it.exerciseId)).join(', '))}</p></div>` : ''}`;
+    <ol class="weekstrip">${cells}</ol>
+  </div>`;
+}
+
+/** Bester Satz einer Übung in einer Einheit: schwerstes Gewicht (bei
+    Gleichstand mehr Wdh), meiste Wdh bzw. längste Zeit. */
+function topSet(sets, type) {
+  let best = null;
+  const score = (st) => type === 'time' ? [st.seconds, 0]
+    : type === 'bodyweight' ? [st.extra || 0, st.reps]
+    : [st.weight, st.reps];
+  sets.forEach((st) => {
+    const s = score(st);
+    if (!fin(s[0]) && !fin(s[1])) return;
+    if (!best) { best = st; return; }
+    const b = score(best);
+    if ((s[0] || 0) > (b[0] || 0) || ((s[0] || 0) === (b[0] || 0) && (s[1] || 0) > (b[1] || 0))) best = st;
+  });
+  return best;
+}
+
+/** Vergleich mit dem vorigen Mal: Kennzahl je Typ aus Core.exercisePoints.
+    Liefert Unterschied und ob es ein neuer Bestwert über alle früheren war. */
+function exCompare(ex, sessionId) {
+  const key = ex.type === 'weight' ? 'top' : (ex.type === 'time' ? 'secs' : 'reps');
+  const pts = Core.exercisePoints(db.sessions, ex.id, ex.type);
+  const i = pts.findIndex((p) => p.id === sessionId);
+  if (i < 0 || !fin(pts[i][key])) return null;
+  const before = pts.slice(0, i).map((p) => p[key]).filter(fin);
+  if (!before.length) return { first: true };
+  const prev = before[before.length - 1];
+  return { diff: pts[i][key] - prev, pr: pts[i][key] > Math.max.apply(null, before), key };
+}
+
+/** Pill neben dem Topsatz: Bestwert, Veränderung oder nichts. */
+function comparePill(c, type) {
+  if (!c || c.first) return '';
+  if (c.pr) return `<span class="pill st-good">${ICON.trophy}Bestwert</span>`;
+  if (!c.diff) return '';
+  const unit = type === 'weight' ? ' kg' : (type === 'time' ? ' s' : '');
+  return `<span class="pill">${c.diff > 0 ? ICON.up : ICON.down}${esc(nfa.format(Math.abs(c.diff)))}${unit}</span>`;
+}
+
+/* Wie lange ist das her, in Worten. Ab einer Woche zählt das Datum. */
+function ago(iso, lower) {
+  const a = new Date(iso); a.setHours(0, 0, 0, 0);
+  const b = new Date(); b.setHours(0, 0, 0, 0);
+  const d = Math.round((b - a) / 86400000);
+  const t = d <= 0 ? 'Heute' : d === 1 ? 'Gestern' : d < 7 ? `Vor ${d} Tagen` : dfDay.format(new Date(iso));
+  return lower && d < 7 ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+}
+
+/** Karte letztes Training: Kopf mit Datum und Dauer, Kennwerte, dann je
+    Übung der beste Satz mit Vergleich zum vorigen Mal. */
+function lastCard(se, types) {
+  const st = Core.sessionStats(se, types);
+  const mins = st.dur != null ? Math.round(st.dur / 60) : null;
+  const rows = se.items.map((it) => {
+    const ex = exById(it.exerciseId);
+    const type = ex ? ex.type : 'weight';
+    const top = topSet(it.sets, type);
+    const cmp = ex ? exCompare(ex, se.id) : null;
+    return `<button class="row lt-row" ${ex ? `data-act="ex" data-id="${esc(ex.id)}"` : 'disabled'}>
+      <span class="grow"><span class="t">${esc(ex ? ex.name : 'Gelöschte Übung')}</span>
+      <span class="sub">${esc(plural(it.sets.length, 'Satz', 'Sätze'))}</span></span>
+      <span class="end lt-end"><span class="num lt-top">${top ? esc(setText(top, type)) : '–'}</span>${comparePill(cmp, type)}</span>
+    </button>`;
+  }).join('');
+  return `<div class="sec-h">Letztes Training</div>
+    <div class="rows lastcard">
+      <button class="lt-head" data-act="session" data-id="${esc(se.id)}">
+        <span class="grow"><span class="lt-when">${esc(ago(se.date))}</span>
+        <span class="sub">${esc(dfDay.format(new Date(se.date)))} · ${esc(dfClock.format(new Date(se.date)))} Uhr${se.extras.length ? ' · ' + esc(se.extras.map(extraLabel).join(', ')) : ''}</span></span>${ICON.chev}
+      </button>
+      <div class="stats lt-stats">
+        <div><span class="lbl">Dauer</span><span class="num">${mins != null ? `${countNum(mins)}<small>min</small>` : '–'}</span></div>
+        <div><span class="lbl">Sätze</span><span class="num">${countNum(st.sets)}</span></div>
+        <div><span class="lbl">Volumen</span><span class="num">${countNum(st.volume)}<small>kg</small></span></div>
+      </div>
+      ${rows}
+    </div>`;
 }
 
 const sessionLine = (st) => `${plural(st.exercises, 'Übung', 'Übungen')} · ${plural(st.sets, 'Satz', 'Sätze')}`
   + (st.volume ? ` · ${kg0(st.volume)}` : '');
 
-/** Laufendes Training: Kopf mit Kennwerten, je Übung ein Block, Notiz und
-    Markierungen, Beenden. */
+/** Laufendes Training: Kopf mit Kennwerten, je Übung ein Block. Notiz und
+    Extras fragt erst das Beenden-Sheet ab, während des Trainings stören sie. */
 function liveSession(se) {
   const types = Core.typeMap(db.exercises);
   const st = Core.sessionStats(se, types);
@@ -320,7 +437,7 @@ function liveSession(se) {
       <div class="live-top">
         <span class="grow"><span class="lbl">Seit ${esc(dfClock.format(new Date(se.date)))}</span>
         <span class="num live-dur">${countNum(mins)}<small>min</small></span></span>
-        <button class="btn btn-sm" data-act="end">${ICON.stop}Beenden</button>
+        <button class="btn btn-sm" data-act="end">Beenden</button>
       </div>
       <div class="stats">
         <div><span class="lbl">Übungen</span><span class="num">${countNum(st.exercises)}</span></div>
@@ -329,14 +446,7 @@ function liveSession(se) {
       </div>
     </div>
     ${blocks || `<div class="hint">${ICON.info}<span>Wähle die erste Übung. Die Werte vom letzten Mal stehen schon im Formular.</span></div>`}
-    <button class="btn btn-block" data-act="addex">${ICON.plus}Übung hinzufügen</button>
-    <div class="sec-h">Notiz und Extras</div>
-    <button class="card row" data-act="note">
-      <span class="grow"><span class="t">${se.note ? esc(se.note) : 'Notiz schreiben'}</span>
-      <span class="sub">${se.note ? 'Antippen zum Ändern' : 'Wie lief es, was ist aufgefallen?'}</span></span>${ICON.note}
-    </button>
-    <div class="chips">${EXTRAS.map(([v, l]) =>
-      `<button class="chip${se.extras.indexOf(v) >= 0 ? ' on' : ''}" data-act="extra" data-v="${esc(v)}" aria-pressed="${se.extras.indexOf(v) >= 0}">${esc(l)}</button>`).join('')}</div>`;
+    <button class="btn btn-block" data-act="addex">${ICON.plus}Übung hinzufügen</button>`;
 }
 
 /** Ein Block je Übung im laufenden Training: Kopf, gelogte Sätze, Knopf. */
@@ -388,11 +498,39 @@ function endSession() {
       }, null, true);
     return;
   }
-  askSheet('Training beenden?', `${sessionLine(st)} werden im Verlauf gespeichert.`, 'Beenden', () => {
+  const mins = Math.max(0, Math.round((Date.now() - Date.parse(se.date)) / 60000));
+  openSheet('Training beenden', `
+    <div class="stats stats-top end-stats">
+      <div><span class="lbl">Dauer</span><span class="num">${esc(nf0.format(mins))}<small>min</small></span></div>
+      <div><span class="lbl">Sätze</span><span class="num">${esc(nf0.format(st.sets))}</span></div>
+      <div><span class="lbl">Volumen</span><span class="num">${esc(nf0.format(st.volume))}<small>kg</small></span></div>
+    </div>
+    <label>Notiz<textarea id="f_note" rows="3" placeholder="Wie lief es? (optional)">${esc(se.note)}</textarea></label>
+    <div class="lbl">Extras</div>
+    <div class="chips chips-sheet">${EXTRAS.map(([v, l]) =>
+      `<button class="chip${se.extras.indexOf(v) >= 0 ? ' on' : ''}" data-chip="${esc(v)}" aria-pressed="${se.extras.indexOf(v) >= 0}">${esc(l)}</button>`).join('')}</div>
+  `, () => {
+    se.note = $('#f_note').value.trim();
     se.end = new Date().toISOString();
     db.active = null; db.rest = null;
     save(); wake(false); closeSheet(); animNext = true; render(); toast('Training gespeichert');
-  });
+  }, 'Beenden');
+  wireExtraChips(se);
+}
+
+/** Extras-Chips im Sheet: schalten sofort um, gespeichert wird mit. */
+function wireExtraChips(se) {
+  $('#sheetBody').onclick = (e) => {
+    const c = e.target.closest('[data-chip]');
+    if (!c) return;
+    const v = c.dataset.chip;
+    const i = se.extras.indexOf(v);
+    if (i >= 0) se.extras.splice(i, 1); else se.extras.push(v);
+    const on = se.extras.indexOf(v) >= 0;
+    c.classList.toggle('on', on);
+    c.setAttribute('aria-pressed', String(on));
+    save();
+  };
 }
 
 function toggleExtra(sid, v) {
@@ -756,17 +894,7 @@ function noteSheet(sid, back) {
     save(); closeSheet(); render(); toast('Gespeichert');
   });
   if (back) $('#sheetCancel').onclick = back;
-  $('#sheetBody').onclick = (e) => {
-    const c = e.target.closest('[data-chip]');
-    if (!c) return;
-    const v = c.dataset.chip;
-    const i = se.extras.indexOf(v);
-    if (i >= 0) se.extras.splice(i, 1); else se.extras.push(v);
-    const on = se.extras.indexOf(v) >= 0;
-    c.classList.toggle('on', on);
-    c.setAttribute('aria-pressed', String(on));
-    save();
-  };
+  wireExtraChips(se);
 }
 
 /* ── 8. Ansicht Verlauf ─────────────────────────────────────── */
@@ -774,9 +902,9 @@ function renderVerlauf() {
   const el = $('#view-verlauf');
   $('#topSub').textContent = db.sessions.length ? plural(db.sessions.length, 'Training', 'Trainings') : '';
   if (!db.sessions.length) {
-    el.innerHTML = `${bodyWeightCard()}<div class="empty"><h2>Noch kein Training im Verlauf</h2>
+    el.innerHTML = `<div class="empty"><h2>Noch kein Training im Verlauf</h2>
       <p>Sobald Du ein Training beendet hast, steht es hier mit allen Sätzen.</p>
-      <button class="btn btn-primary" data-nav="heute">Zu Heute</button></div>`;
+      <button class="btn btn-primary" data-nav="heute">Zu Heute</button></div>${bodyWeightCard()}`;
     return;
   }
   const types = Core.typeMap(db.exercises);
@@ -787,34 +915,69 @@ function renderVerlauf() {
   const last30 = db.sessions.filter((s) => Date.parse(s.date) >= since);
   let sets30 = 0, vol30 = 0;
   last30.forEach((s) => { const st = Core.sessionStats(s, types); sets30 += st.sets; vol30 += st.volume; });
+  const weekRead = (w) => `<b>${nf0.format(w.sets)}</b> ${w.sets === 1 ? 'Satz' : 'Sätze'} · ${plural(w.sessions, 'Training', 'Trainings')} · ab ${esc(dfAxis.format(new Date(w.start)))}`;
 
-  const rows = db.sessions.map((se) => {
-    const st = Core.sessionStats(se, types);
-    const ex = se.items.map((it) => exName(it.exerciseId)).join(', ');
-    return `<button class="row row-wrap" data-act="session" data-id="${esc(se.id)}">
-      <span class="grow"><span class="t">${esc(dfDay.format(new Date(se.date)))}${se.id === db.active ? ' <span class="tag">läuft</span>' : ''}</span>
-      <span class="sub">${esc(sessionLine(st))}</span>
-      <span class="sub">${esc(ex || 'ohne Übung')}</span></span>
-      <span class="end">${se.extras.length ? `<span class="tag">${esc(se.extras.map(extraLabel).join(' · '))}</span>` : ''}${ICON.chev}</span>
-    </button>`;
-  }).join('');
-
-  el.innerHTML = `${bodyWeightCard()}<div class="sec-h">Sätze je Woche</div>
-    <div class="card">${chartBox(bars, (i) => weeks[i]
-      ? `<b>${nf0.format(weeks[i].sets)}</b> ${weeks[i].sets === 1 ? 'Satz' : 'Sätze'} · ${plural(weeks[i].sessions, 'Training', 'Trainings')} · Woche ab ${esc(dfMed.format(new Date(weeks[i].start)))}`
-      : null, '<span>Antippen zum Ablesen</span>')}
+  el.innerHTML = `<div class="sec-h">Sätze je Woche</div>
+    <div class="card">${chartBox(bars, (i) => (weeks[i] ? weekRead(weeks[i]) : null), weekRead(weeks[weeks.length - 1]))}
       <div class="stats">
         <div><span class="lbl">Trainings</span><span class="num">${countNum(last30.length)}</span></div>
         <div><span class="lbl">Sätze</span><span class="num">${countNum(sets30)}</span></div>
         <div><span class="lbl">Volumen</span><span class="num">${countNum(vol30)}<small>kg</small></span></div>
       </div>
-      <p class="note">Kennwerte der letzten 30 Tage.</p>
+      <p class="note">Letzte 30 Tage</p>
     </div>
-    <div class="sec-h">Alle Trainings</div>
-    <div class="rows">${rows}</div>`;
+    ${sessionWeeks(types)}
+    ${bodyWeightCard()}`;
 }
 
-/** Karte Körpergewicht oben im Verlauf: aktueller Wert, Änderung in 30
+/** Kalenderwoche nach ISO 8601 (Woche mit dem ersten Donnerstag ist KW 1). */
+function isoWeek(t) {
+  const d = new Date(t); d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const w1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - w1) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7);
+}
+
+/** Muskelgruppen einer Einheit in Reihenfolge des Trainings, jede einmal.
+    Kürzer als alle Übungsnamen und sagt trotzdem, was dran war. */
+function sessionGroups(se) {
+  const out = [];
+  se.items.forEach((it) => {
+    const ex = exById(it.exerciseId);
+    const g = ex ? (ex.group || ex.name) : null;
+    if (g && out.indexOf(g) < 0) out.push(g);
+  });
+  return out;
+}
+
+/** Alle Trainings, nach Kalenderwochen gruppiert, neueste zuerst. */
+function sessionWeeks(types) {
+  const thisWeek = Core.weekStart(Date.now());
+  const groups = [];
+  db.sessions.forEach((se) => {
+    const ws = Core.weekStart(Date.parse(se.date));
+    let g = groups[groups.length - 1];
+    if (!g || g.ws !== ws) { g = { ws, list: [] }; groups.push(g); }
+    g.list.push(se);
+  });
+  const prevWeek = new Date(thisWeek); prevWeek.setDate(prevWeek.getDate() - 7);
+  return groups.map((g) => {
+    const name = g.ws === thisWeek ? 'Diese Woche' : g.ws === prevWeek.getTime() ? 'Letzte Woche' : `KW ${isoWeek(g.ws)}`;
+    const rows = g.list.map((se) => {
+      const st = Core.sessionStats(se, types);
+      const sub = sessionGroups(se).join(', ') || 'ohne Übung';
+      return `<button class="row" data-act="session" data-id="${esc(se.id)}">
+        <span class="grow"><span class="t">${esc(dfDay.format(new Date(se.date)))}${se.id === db.active ? ' <span class="tag">läuft</span>' : ''}</span>
+        <span class="sub">${esc(sub)}${se.extras.length ? ' · ' + esc(se.extras.map(extraLabel).join(', ')) : ''}</span></span>
+        <span class="end num">${esc(nf0.format(st.sets))}<small>${st.sets === 1 ? 'Satz' : 'Sätze'}</small></span>${ICON.chev}
+      </button>`;
+    }).join('');
+    return `<div class="sec-h"><span class="grow">${esc(name)}</span><span>${esc(plural(g.list.length, 'Training', 'Trainings'))}</span></div>
+      <div class="rows">${rows}</div>`;
+  }).join('');
+}
+
+/** Karte Körpergewicht unten im Verlauf: aktueller Wert, Änderung in 30
     Tagen, Verlauf der letzten Einträge. Zeigt, bewertet nicht. */
 function bodyWeightCard() {
   const list = db.bodyWeights;
@@ -833,20 +996,21 @@ function bodyWeightCard() {
   let chart = '';
   if (pts.length >= 2) {
     const svg = Charts.line({ vals: pts.map((b) => b.kg), labels: pts.map((b) => dfAxis.format(new Date(b.date))), fmtY: fmt });
-    chart = chartBox(svg, (i) => (pts[i]
-      ? `<b>${esc(fmt(pts[i].kg))}</b> kg <span>${esc(dfMed.format(new Date(pts[i].date)))}</span>` : null),
-    '<span>Antippen zum Ablesen</span>');
+    const read = (i) => (pts[i]
+      ? `<b>${esc(fmt(pts[i].kg))}</b> kg <span>${esc(dfMed.format(new Date(pts[i].date)))}</span>` : null);
+    chart = chartBox(svg, read, read(pts.length - 1));
   }
   const sign = diff == null ? '' : (diff > 0 ? '+' : (diff < 0 ? '−' : '±'));
   return `${head}<div class="card">
     ${chart}
     <div class="stats${chart ? '' : ' stats-top'}">
       <div><span class="lbl">Aktuell</span><span class="num">${countNum(cur.kg, true)}<small>kg</small></span></div>
-      <div><span class="lbl">30 Tage</span><span class="num">${diff == null ? '–' : esc(sign + nf1.format(Math.abs(diff)))}${diff == null ? '' : '<small>kg</small>'}</span></div>
+      ${diff == null
+        ? `<div><span class="lbl">Seit</span><span class="num">${esc(dfAxis.format(new Date(list[list.length - 1].date)))}</span></div>`
+        : `<div><span class="lbl">30 Tage</span><span class="num">${esc(sign + nf1.format(Math.abs(diff)))}<small>kg</small></span></div>`}
       <div><span class="lbl">Einträge</span><span class="num">${countNum(list.length)}</span></div>
     </div>
-    <p class="note">Zuletzt am ${esc(dfMed.format(new Date(cur.date)))}${ref ? `, verglichen mit ${esc(dfMed.format(new Date(ref.date)))}` : ''}.</p>
-    <div class="btn-row">
+    <div class="btn-row bw-btns">
       <button class="btn" data-act="bwadd">${ICON.plus}Eintragen</button>
       <button class="btn" data-act="bwlist">Alle Einträge</button>
     </div></div>`;
@@ -1017,7 +1181,10 @@ function exListHtml() {
       <p>${needle ? 'Andere Schreibweise versuchen – oder die Übung neu anlegen.' : 'Lege Deine erste Übung an.'}</p>
       <button class="btn btn-primary" data-act="newex">${ICON.plus}Neue Übung</button></div>`;
   }
-  let out = byGroup(open).map((b) => `<div class="sec-h">${esc(b.g)}</div><div class="rows">${b.list.map(exRow).join('')}</div>`).join('');
+  /* Eine Karte mit Zwischenzeilen statt einer Karte je Gruppe: Gruppen mit
+     nur einer Übung erzeugten sonst viel Leerraum. */
+  let out = open.length ? `<div class="rows exlist">${byGroup(open).map((b) =>
+    `<div class="row-h">${esc(b.g)}</div>${b.list.map(exRow).join('')}`).join('')}</div>` : '';
   if (arch.length) out += `<div class="sec-h">Archiviert</div><div class="rows">${arch.map(exRow).join('')}</div>`;
   return out;
 }
@@ -1032,12 +1199,13 @@ function exRow(e) {
   const lastSet = Core.lastSet(db.sessions, e.id);
   return `<button class="row" data-act="ex" data-id="${esc(e.id)}">
     <span class="grow"><span class="t">${esc(e.name)}</span>
-    <span class="sub">${lastSet ? 'zuletzt ' + esc(setText(lastSet.set, e.type)) : 'noch nie trainiert'}${last ? ' · ' + esc(dfShort.format(new Date(last.date))) : ''}</span></span>
+    <span class="sub">${lastSet ? esc(setText(lastSet.set, e.type)) : 'noch nie trainiert'}${last ? ' · ' + esc(ago(last.date, true)) : ''}</span></span>
     <span class="end">${vals.filter(fin).length > 1 ? Charts.spark(vals, { w: 64, h: 28 }) : ''}</span>${ICON.chev}
   </button>`;
 }
 
 function openEx(id) {
+  if (curEx !== id) metric = null;   // neue Übung beginnt mit der ersten Kennzahl
   curEx = id;
   nav('uebung');
 }
@@ -1053,34 +1221,43 @@ function renderUebung() {
   const inSession = se && se.items.some((x) => x.exerciseId === ex.id);
 
   const segs = seg('range', [[90, '3 Monate'], [365, '1 Jahr'], [0, 'Alles']], range);
-  let charts = '';
+  /* Ein Diagramm mit Umschalter statt drei Karten untereinander. */
+  const opts = METRICS[ex.type] || METRICS.weight;
+  const m = opts.find((o) => o[0] === metric) || opts[0];
+  let chart;
   if (pts.length < 2) {
-    charts = `<div class="card"><div class="chart-empty">${b.points.length
+    chart = `<div class="chart-empty">${b.points.length
       ? 'Zu wenig Trainings im Zeitraum. Wähle einen längeren.'
-      : 'Noch kein Satz für diese Übung.'}</div></div>`;
-  } else if (ex.type === 'weight') {
-    charts = chartCard('Höchstgewicht', pts, b.points, 'top', (v) => nf0.format(v), 'kg')
-      + chartCard('Geschätztes 1RM (Epley)', pts, b.points, 'rm', (v) => nf0.format(v), 'kg')
-      + chartCard('Volumen je Training', pts, b.points, 'vol', (v) => nf0.format(v), 'kg', true);
-  } else if (ex.type === 'bodyweight') {
-    charts = chartCard('Meiste Wiederholungen', pts, b.points, 'reps', (v) => nf0.format(v), 'Wdh')
-      + chartCard('Wiederholungen je Training', pts, b.points, 'vol', (v) => nf0.format(v), 'Wdh', true);
+      : 'Noch kein Satz für diese Übung.'}</div>`;
   } else {
-    charts = chartCard('Längste Dauer', pts, b.points, 'secs', (v) => Core.clock(v), '')
-      + chartCard('Zeit je Training', pts, b.points, 'vol', (v) => Core.clock(v), '', true);
+    chart = chartBlock(pts, b.points, m);
   }
 
-  el.innerHTML = `${segs}
+  el.innerHTML = `
     <div class="card">
-      <div class="stats">${bestCells(ex, b)}</div>
+      <div class="stats stats-top">${bestCells(ex, b)}</div>
       <p class="note">${esc(bestLine(ex, b))}</p>
     </div>
-    ${charts}
-    ${se ? `<button class="btn ${inSession ? '' : 'btn-primary'} btn-block" data-act="addcur">${inSession ? ICON.plus + 'Weiteren Satz loggen' : ICON.plus + 'Zum laufenden Training'}</button>` : ''}
+    ${se ? `<button class="btn ${inSession ? '' : 'btn-primary'} btn-block ex-cur" data-act="addcur">${ICON.plus}${inSession ? 'Weiteren Satz loggen' : 'Zum laufenden Training'}</button>` : ''}
+    <div class="sec-h">Verlauf</div>
+    ${segs}
+    <div class="card">
+      ${opts.length > 1 ? seg('metric', opts.map((o) => [o[0], o[1]]), m[0]) : ''}
+      ${chart}
+    </div>
     <div class="sec-h">Letzte Trainings</div>
     ${exSessionRows(ex, b)}
     <button class="btn btn-block" data-act="editex">${ICON.pencil}Übung bearbeiten</button>`;
 }
+
+/* Kennzahlen je Übungstyp: [Schlüssel, Name im Umschalter, Formatierer, Einheit, als Balken]. */
+const fmtInt = (v) => nf0.format(v);
+const fmtKg = (v) => nfa.format(v);
+const METRICS = {
+  weight: [['top', 'Gewicht', fmtKg, 'kg'], ['rm', '1RM', fmtInt, 'kg'], ['vol', 'Volumen', fmtInt, 'kg', true]],
+  bodyweight: [['reps', 'Max. Wdh', fmtInt, 'Wdh'], ['vol', 'Wdh gesamt', fmtInt, 'Wdh', true]],
+  time: [['secs', 'Bestzeit', (v) => Core.clock(v), ''], ['vol', 'Zeit gesamt', (v) => Core.clock(v), '', true]],
+};
 
 /** Drei Bestwerte, je Typ die passenden. */
 function bestCells(ex, b) {
@@ -1095,7 +1272,9 @@ function bestCells(ex, b) {
       + cell('Wdh gesamt', countNum(b.total), '')
       + cell('Trainings', countNum(b.sessions), '');
   }
-  return cell('Bestgewicht', b.top ? countNum(b.top.v, b.top.v % 1 !== 0) : '–', 'kg')
+  /* Nur ganze Zahlen zählen hoch; 18,75 kg bliebe sonst als 18,8 stehen. */
+  const topVal = !b.top ? '–' : Number.isInteger(b.top.v) ? countNum(b.top.v) : esc(nfa.format(b.top.v));
+  return cell('Bestgewicht', topVal, 'kg')
     + cell('Bestes 1RM', b.rm ? countNum(b.rm.v) : '–', 'kg')
     + cell('Volumen', countNum(b.total), 'kg');
 }
@@ -1103,14 +1282,15 @@ function bestCells(ex, b) {
 function bestLine(ex, b) {
   if (!b.sessions) return 'Noch kein Satz gespeichert.';
   const best = ex.type === 'time' ? b.secs : (ex.type === 'bodyweight' ? b.reps : b.top);
-  const when = best ? dfMed.format(new Date(best.date)) : null;
-  return `${plural(b.sets, 'Satz', 'Sätze')} in ${plural(b.sessions, 'Training', 'Trainings')}`
-    + (when ? `, Bestwert am ${when}` : '')
-    + `. Zuletzt am ${dfMed.format(new Date(b.last.date))}.`;
+  const when = best ? dfShort.format(new Date(best.date)) : null;
+  return `${plural(b.sessions, 'Training', 'Trainings')} · zuletzt ${ago(b.last.date, true)}`
+    + (when ? ` · Bestwert ${when}` : '');
 }
 
-/** Ein Diagramm mit Einordnung darunter. `asBars` für Summen je Training. */
-function chartCard(title, pts, all, key, fmtY, unit, asBars) {
+/** Diagramm einer Kennzahl mit Ablesezeile (zeigt zuerst den letzten Wert)
+    und Einordnung darunter. Fehlt der Vergleich, bleibt die Zeile weg. */
+function chartBlock(pts, all, m) {
+  const [key, , fmtY, unit, asBars] = m;
   const vals = pts.map((p) => p[key]);
   const labels = pts.map((p) => dfAxis.format(new Date(p.date)));
   const svg = asBars
@@ -1119,11 +1299,10 @@ function chartCard(title, pts, all, key, fmtY, unit, asBars) {
   const read = (i) => (pts[i] && fin(vals[i])
     ? `<b>${esc(fmtY(vals[i]))}</b>${unit ? ' ' + esc(unit) : ''} <span>${esc(dfMed.format(new Date(pts[i].date)))}</span>`
     : null);
+  let lastI = vals.length - 1;
+  while (lastI > 0 && !fin(vals[lastI])) lastI--;
   const tr = Core.trend(all, key, range);   // nicht pts: der Vergleichszeitraum liegt davor
-  return `<div class="sec-h">${esc(title)}</div>
-    <div class="card">${chartBox(svg, read, '<span>Antippen zum Ablesen</span>')}
-      <p class="tr-text">${trendText(tr, fmtY, unit)}</p>
-    </div>`;
+  return `${chartBox(svg, read, read(lastI))}${tr ? `<p class="tr-text">${trendText(tr, fmtY, unit)}</p>` : ''}`;
 }
 
 /** Mittel im Zeitraum gegen den Zeitraum davor. Kleine Änderungen bleiben
@@ -1145,10 +1324,20 @@ function exSessionRows(ex, b) {
     const it = se && se.items.find((x) => x.exerciseId === ex.id);
     return `<button class="row row-wrap" data-act="session" data-id="${esc(p.id)}">
       <span class="grow"><span class="t">${esc(dfDay.format(new Date(p.date)))}</span>
-      <span class="sub">${esc(it ? it.sets.map((s) => setText(s, ex.type)).join('  ·  ') : '')}</span></span>${ICON.chev}
+      <span class="sub">${esc(it ? setsCompact(it.sets, ex.type) : '')}</span></span>${ICON.chev}
     </button>`;
   }).join('');
   return rows ? `<div class="rows">${rows}</div>` : '<p class="note">Noch keine Trainings mit dieser Übung.</p>';
+}
+
+/** Sätze kurz: bei gleichem Gewicht „10 · 9 · 8 × 18,75 kg" statt dreimal
+    dasselbe Gewicht, sonst jeder Satz einzeln. */
+function setsCompact(sets, type) {
+  const w = sets.length ? sets[0].weight : null;
+  if (type === 'weight' && sets.length > 1 && fin(w) && sets.every((st) => st.weight === w && fin(st.reps))) {
+    return `${sets.map((st) => nf0.format(st.reps)).join(' · ')} × ${kg(w)}`;
+  }
+  return sets.map((st) => setText(st, type)).join('  ·  ');
 }
 
 /** Übung anlegen. `then(id)` übernimmt die neue Übung, z. B. direkt ins
@@ -1232,54 +1421,63 @@ function editExercise(id, back) {
 function renderEinst() {
   const last = db.lastBackup ? dfMed.format(new Date(db.lastBackup)) : 'noch nie';
   const nState = !('Notification' in window) ? 'Von diesem Browser nicht unterstützt'
-    : Notification.permission === 'granted' ? 'Erlaubt'
-      : Notification.permission === 'denied' ? 'Abgelehnt – in den Browser-Einstellungen änderbar'
-        : 'Noch nicht erlaubt';
+    : Notification.permission === 'granted' ? 'Erlaubt. Bei gesperrtem Handy evtl. verzögert'
+      : Notification.permission === 'denied' ? 'Abgelehnt, in den Browser-Einstellungen änderbar'
+        : 'Noch nicht erlaubt, antippen zum Erlauben';
   $('#topSub').textContent = '';
+  const nOpen = db.exercises.filter((e) => !e.archived).length;
+  const canAsk = ('Notification' in window) && Notification.permission === 'default';
   $('#view-einst').innerHTML = `
     <div class="sec-h">Training</div>
-    <button class="row card" data-act="restset">
-      <span class="grow"><span class="t">Pausenzeit</span><span class="sub">Startet nach jedem gespeicherten Satz</span></span>
-      <span class="end num">${esc(Core.clock(db.settings.restSeconds))}</span>${ICON.chev}
-    </button>
-    <div class="card">
-      <div class="lbl">Gewicht in Schritten von</div>
-      ${seg('step', [[1, '1 kg'], [1.25, '1,25 kg'], [2.5, '2,5 kg'], [5, '5 kg']], db.settings.weightStep)}
-      <p class="note">Gilt für die Plus- und Minus-Knöpfe. Ins Feld lässt sich jeder Wert eintragen.</p>
-    </div>
-    <button class="row card" data-nav="uebungen">
-      <span class="grow"><span class="t">Übungen verwalten</span><span class="sub">Anlegen, umbenennen, archivieren</span></span>
-      <span class="end num">${nf0.format(db.exercises.filter((e) => !e.archived).length)}</span>${ICON.chev}
-    </button>
-
-    <div class="sec-h">Darstellung</div>
-    <div class="card">${seg('theme', Object.keys(THEMES).map((k) => [k, THEMES[k].label]), db.settings.theme)}</div>
-
-    <div class="sec-h">Benachrichtigung</div>
-    <div class="card">
-      <div class="lbl">Ende der Pause</div>
-      <p class="note">${esc(nState)}. Bei gesperrtem Handy kann Android die Meldung verzögern – sicher ist nur die Leiste in der App.</p>
-      ${('Notification' in window) && Notification.permission === 'default'
-        ? '<button class="btn btn-block" data-act="notify">Benachrichtigung erlauben</button>' : ''}
+    <div class="rows">
+      <button class="row" data-act="restset">
+        <span class="grow"><span class="t">Pausenzeit</span><span class="sub">Startet nach jedem Satz</span></span>
+        <span class="end num">${esc(Core.clock(db.settings.restSeconds))}</span>${ICON.chev}
+      </button>
+      <button class="row" data-nav="uebungen">
+        <span class="grow"><span class="t">Übungen</span><span class="sub">Anlegen, umbenennen, archivieren</span></span>
+        <span class="end num">${esc(nf0.format(nOpen))}</span>${ICON.chev}
+      </button>
+      <${canAsk ? 'button' : 'div'} class="row"${canAsk ? ' data-act="notify"' : ''}>
+        <span class="grow"><span class="t">Benachrichtigung am Pausenende</span><span class="sub">${esc(nState)}</span></span>
+        ${canAsk ? ICON.chev : ''}
+      </${canAsk ? 'button' : 'div'}>
+      <div class="row row-stack">
+        <span class="t">Gewicht-Schritt bei Plus und Minus</span>
+        ${seg('step', [[1, '1 kg'], [1.25, '1,25 kg'], [2.5, '2,5 kg'], [5, '5 kg']], db.settings.weightStep)}
+      </div>
+      <div class="row row-stack">
+        <span class="t">Darstellung</span>
+        ${seg('theme', Object.keys(THEMES).map((k) => [k, THEMES[k].label]), db.settings.theme)}
+      </div>
     </div>
 
-    <div class="sec-h">Backup</div>
-    <div class="card">
-      <p class="note">Deine Daten liegen nur auf diesem Gerät. „Browserdaten löschen" entfernt sie ohne Vorwarnung, deshalb regelmäßig ein Backup sichern. Letztes Backup: ${esc(last)}.</p>
-      <button class="btn btn-block" data-act="export">Backup speichern</button>
-      <button class="btn btn-block" data-act="import">Backup laden</button>
-      <input type="file" id="fileImport" accept="application/json,.json" class="hidden">
-      <p class="note">Alte Trainings aus einer Import-Datei kommen zu deinen Daten dazu, nichts wird ersetzt. Tage, an denen schon ein Training steht, werden übersprungen.</p>
-      <button class="btn btn-block" data-act="merge">Alte Trainings hinzufügen</button>
-      <input type="file" id="fileMerge" accept="application/json,.json" class="hidden">
+    <div class="sec-h">Daten</div>
+    <div class="rows">
+      <button class="row" data-act="export">
+        <span class="grow"><span class="t">Backup speichern</span><span class="sub">Letztes Backup: ${esc(last)}</span></span>${ICON.chev}
+      </button>
+      <button class="row" data-act="import">
+        <span class="grow"><span class="t">Backup laden</span><span class="sub">Ersetzt die Daten auf diesem Gerät</span></span>${ICON.chev}
+      </button>
+      <button class="row" data-act="merge">
+        <span class="grow"><span class="t">Alte Trainings hinzufügen</span><span class="sub">Ergänzt nur, Tage mit Training bleiben</span></span>${ICON.chev}
+      </button>
     </div>
+    <input type="file" id="fileImport" accept="application/json,.json" class="hidden">
+    <input type="file" id="fileMerge" accept="application/json,.json" class="hidden">
+    <p class="note set-note">Die Daten liegen nur auf diesem Gerät. „Browserdaten löschen" entfernt sie, deshalb regelmäßig sichern.</p>
 
     <div class="sec-h">App</div>
-    <div class="card">
-      <button class="btn btn-block hidden" id="btnInstall" data-act="install">App installieren</button>
-      <button class="btn btn-block" data-act="update">Nach Update suchen</button>
-      <p class="note">Gymtracker ${esc(APP_VERSION)} · ${plural(db.sessions.length, 'Training', 'Trainings')}, ${plural(db.exercises.length, 'Übung', 'Übungen')}, ${plural(db.bodyWeights.length, 'Gewichtseintrag', 'Gewichtseinträge')}</p>
-    </div>`;
+    <div class="rows">
+      <button class="row hidden" id="btnInstall" data-act="install">
+        <span class="grow"><span class="t">App installieren</span><span class="sub">Startet dann wie eine normale App</span></span>${ICON.chev}
+      </button>
+      <button class="row" data-act="update">
+        <span class="grow"><span class="t">Nach Update suchen</span><span class="sub">Version ${esc(APP_VERSION)}</span></span>${ICON.chev}
+      </button>
+    </div>
+    <p class="note set-note">${plural(db.sessions.length, 'Training', 'Trainings')} · ${plural(db.exercises.length, 'Übung', 'Übungen')} · ${plural(db.bodyWeights.length, 'Gewichtseintrag', 'Gewichtseinträge')}</p>`;
   $('#fileImport').onchange = (e) => importBackup(e.target.files[0]);
   $('#fileMerge').onchange = (e) => mergeOld(e.target.files[0]);
   syncInstall();
@@ -1720,6 +1918,7 @@ function wire() {
 /** Segmente in den Ansichten (im Sheet läuft die Auswahl über pickSeg). */
 function onSeg(name, v) {
   if (name === 'range') { range = +v; animNext = true; render(); return; }
+  if (name === 'metric') { metric = v; animNext = true; render(); return; }
   if (name === 'theme') { applyTheme(v); save(); render(); return; }
   if (name === 'step') { db.settings.weightStep = num(v); save(); render(); }
 }

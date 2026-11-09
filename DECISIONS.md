@@ -22,6 +22,8 @@
 - **Sheet über der Tastatur (06.11.2026).** Android legt die Tastatur über die Seite, das unten festgemachte Sheet lag mit den Suchtreffern darunter. `wireKeyboard()` liest `visualViewport` und setzt `--kb` (Abstand nach unten) und `--vvh` (sichtbare Höhe), das Sheet rückt hoch und schrumpft. Bewusst nicht `interactive-widget=resizes-content` im Viewport: das schöbe auch die Tableiste bei jeder Eingabe über die Tastatur. In der Übungswahl bleibt das Suchfeld oben stehen (sticky), die Treffer laufen darunter.
 - **Bestwerte zeigen, nicht bewerten.** Die App zeigt Verlauf, Höchstwerte und unter jedem Diagramm einen Satz zur Einordnung; sie gibt keine Empfehlung und kein Urteil über ein Training ab.
 
+- 1.5.0: Notiz und Extras werden erst im Beenden-Sheet abgefragt, nicht im laufenden Training. Grund: im Studio zählt nur das Loggen, der Rest störte. Nachträglich ändern geht weiter über das Training im Verlauf.
+
 ## Abweichungen vom Skill
 1. **Einstellungen als vierter Tab statt als Sheet.** Das Briefing nennt sie als eigene Ansicht, und Pausenzeit, Übungsverwaltung, Backup und Theme sind zusammen zu viel für ein Sheet. `--tabs` steht deshalb auf 4.
 2. **Zahlenfelder sind `type="text"` mit `inputmode="decimal"`** statt `type="number"` mit `step="any"`. Android verwirft bei `type="number"` das deutsche Komma, der Wert kommt leer an. `num()` parst Komma und Punkt gleich, die Tastatur bleibt die Zifferntastatur.
@@ -42,6 +44,7 @@ Nur am Handy prüfbar:
 - [ ] Weichzeichner der unteren Leiste beim Scrollen
 - [ ] Übungswahl: bei offener Tastatur sind die Suchtreffer sichtbar (Chrome Android, `visualViewport`)
 - [ ] Erinnerung ans Körpergewicht erscheint beim ersten Trainingsstart des Tages und nicht beim zweiten
+- [ ] 1.5.0 mit echten Daten: "Bestwert"-Pills auf Heute nicht zu häufig, Muskelgruppen im Verlauf aussagekräftig (importierte Übungen ohne Gruppe zeigen den Namen)
 
 Sonstiges: nichts offen. Geprüft und in Ordnung: Pausenleiste und untere Leiste sitzen
 in 375 px exakt aneinander statt übereinander (Pausenleiste 576–636, Tableiste 636–700),

@@ -262,6 +262,41 @@ input:focus,select:focus{outline:none; border-color:var(--accent)}
 /* Dieselbe Reihe als erstes Element einer Karte: dann ohne Linie darüber */
 .stats-top{border-top:0; padding-top:0; margin-top:0}
 
+/* Startseite: Wochenkarte mit Tagesleiste */
+.weekcard{margin-top:var(--s1); margin-bottom:var(--s2)}
+.wk-top{display:flex; align-items:flex-start; gap:var(--s2)}
+.wk-top .grow{min-width:0}
+.wk-top .lbl{display:block}
+.wk-big{display:flex; align-items:baseline; gap:var(--s1); margin-top:var(--s-half)}
+.wk-big .num{font-size:var(--fs-big); line-height:52px}
+.wk-unit{color:var(--text-2); font-size:var(--fs-body); font-weight:500}
+.wk-side{display:flex; flex-direction:column; align-items:flex-end; gap:var(--s1); flex:none; padding-top:2px}
+.wk-side .sub{color:var(--muted); font-size:12px; line-height:16px; white-space:nowrap}
+.weekstrip{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:var(--s-half); list-style:none; margin:var(--s2) 0 0; padding:0}
+.wd{display:flex; flex-direction:column; align-items:center; gap:6px; min-width:0}
+.wd .dot{display:grid; place-items:center; width:36px; height:36px; max-width:100%; border-radius:50%; background:var(--surface-2); border:1px solid var(--line-2)}
+.wd .dot svg{width:18px; height:18px; stroke-width:2.5}
+.wd .wd-l{font-size:12px; line-height:16px; color:var(--muted)}
+.wd.on .dot{background:var(--accent); border-color:transparent; color:var(--on-accent)}
+.wd.on .wd-l{color:var(--text)}
+.wd.today .dot{border:2px solid var(--accent); background:transparent}
+.wd.today .wd-l{color:var(--text); font-weight:600}
+.wd.next .dot{background:transparent; border-style:dashed}
+
+/* Startseite: letztes Training, Kopf antippbar, je Übung der beste Satz */
+.lastcard .lt-head{display:flex; align-items:center; gap:12px; width:100%; min-height:64px; padding:var(--s2) var(--pad) 0; text-align:left}
+.lastcard .lt-head .grow{min-width:0}
+.lastcard .lt-head .grow > *{display:block}
+.lastcard .lt-head > svg{width:18px; height:18px; color:var(--muted); flex:none}
+.lt-when{font-size:20px; line-height:28px; font-weight:600}
+.lastcard .lt-head .sub{color:var(--muted); font-size:var(--fs-small); line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lt-stats{margin:var(--s2) var(--pad) 0; padding-bottom:var(--s2); border-bottom:1px solid var(--line)}
+.lt-row{min-height:60px}
+.lt-row .grow{min-width:0}
+.row .lt-end{flex-direction:column; align-items:flex-end; gap:var(--s-half)}
+.lt-top{font-size:var(--fs-body); line-height:20px}
+.lt-end .pill{height:20px; padding:0 8px; font-size:11px}
+
 /* Laufendes Training: Dauer groß, Beenden daneben */
 .live-top{display:flex; align-items:center; gap:var(--s1)}
 .live-top .grow > *{display:block}
@@ -379,3 +414,34 @@ body.with-rest .toast{bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h)
   *,*::before,*::after{animation-duration:.01ms !important;
     animation-iteration-count:1 !important; transition-duration:.01ms !important}
 }
+
+/* ── Überarbeitung 1.5: Verlauf, Übungen, Einstellungen ─────── */
+/* Abschnittsüberschrift mit Zahl rechts (Wochen im Verlauf) */
+.sec-h .grow{min-width:0}
+
+/* Übungsliste: Gruppen als Zwischenzeilen in einer Karte */
+.rows .row-h{font:600 var(--fs-label)/16px var(--font-ui); letter-spacing:var(--track-label); text-transform:uppercase; color:var(--muted);
+  padding:var(--s2) var(--pad) var(--s-half); background:var(--surface)}
+.rows .row-h:not(:first-child){border-top:1px solid var(--line)}
+.exlist .row{border-bottom:0; min-height:60px}
+.exlist .row + .row{border-top:1px solid var(--line)}
+.row .spark .end{fill:var(--accent)}
+
+/* Zeilen mit kleiner Zahl rechts (Sätze im Verlauf) */
+.row .end.num{font-size:var(--fs-body)}
+
+/* Einstellungen: Zeile mit Text oben und Umschalter darunter */
+.row-stack{flex-direction:column; align-items:stretch; gap:12px; padding-top:12px; padding-bottom:12px}
+.row-stack .seg{margin:0}
+div.row{cursor:default}
+.set-note{margin:var(--s1) var(--s-half) 0; color:var(--muted)}
+
+/* Übungsseite: Knopf zum laufenden Training, Abstand wie zwischen Karten */
+.ex-cur{margin-top:var(--s1)}
+.card > .seg + .chart{margin-top:var(--s1)}
+
+/* Beenden-Sheet: Zusammenfassung oben */
+.end-stats{margin-bottom:var(--s3)}
+
+/* Körpergewicht im Verlauf: Knöpfe mit Abstand zur Kennwert-Reihe */
+.bw-btns{margin-top:var(--s2)}

@@ -31,6 +31,13 @@ Gelöscht, weil ohne Kennzahlen-Dashboard unbenutzt: Hero, Gauge, Metrik-Karte (
 | Übungsblock im laufenden Training mit Satzliste | `exBlock()` und `setText()` in `app.js`, `.exblock`/`.setlist`/`.setrow` in `style.css` |
 | Stepper (Zahl mit −/+ und freiem Feld) | `stepper()` in `app.js`, `.step` in `style.css` |
 | Übungszeile mit letztem Satz und Sparkline | `exRow()` in `app.js`, nutzt `.row` |
+| Wochenkarte auf Heute (Tagesleiste Mo bis So, Trainings, Wochen am Stück) | `weekCard()` in `app.js`, `.weekcard`/`.weekstrip`/`.wd` in `style.css` |
+| Karte letztes Training (Kopf, Kennwerte, je Übung bester Satz mit Bestwert- oder Änderungs-Pill) | `lastCard()`, `topSet()`, `exCompare()` in `app.js`, `.lastcard`/`.lt-*` in `style.css` |
+| Verlauf nach Kalenderwochen (Diese Woche, Letzte Woche, KW n), je Training Muskelgruppen statt Übungsnamen | `sessionWeeks()`, `sessionGroups()`, `isoWeek()` in `app.js` |
+| Übungsliste als eine Karte mit Gruppen-Zwischenzeilen | `exListHtml()` in `app.js`, `.row-h`/`.exlist` in `style.css` |
+| Übungsseite: ein Diagramm mit Kennzahl-Umschalter, Ablesezeile zeigt zuerst den letzten Wert | `chartBlock()`, `METRICS` in `app.js` |
+| Beenden-Sheet mit Zusammenfassung, Notiz und Extras | `endSession()`, `wireExtraChips()` in `app.js` |
+| Einstellungen als gruppierte Zeilen, Umschalter in `.row-stack` | `renderEinst()` in `app.js`, `.row-stack` in `style.css` |
 | Bestwerte-Reihe | `.stats` der Vorlage, Inhalt aus `Core.bests()` |
 | Suchfeld mit Lupe (Übungsliste, Übungswahl) | `.field-ic` in `style.css`; die Liste wird einzeln neu geschrieben, damit das Feld den Fokus behält |
 
