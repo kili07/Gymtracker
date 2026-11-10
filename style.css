@@ -23,6 +23,7 @@ html{background:var(--bg)}           /* auch beim Überscrollen die richtige Far
 body{
   background:var(--bg); color:var(--text);
   font:400 var(--fs-body)/24px var(--font-ui);
+  font-feature-settings:"tnum" 0;
   padding-bottom:calc(var(--tab-h) + var(--tab-safe) + var(--s3));
   overscroll-behavior-y:none;          /* kein Gummiband-Scrollen der Seite */
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
@@ -40,9 +41,12 @@ b,strong{font-weight:600}
 
 /* Kennzahlen: feste Ziffernbreite, sonst zappeln die Werte beim Hochzählen */
 .num{font-family:var(--font-num); font-weight:var(--w-num); font-variant-numeric:tabular-nums}
-.num small{font:500 13px/1 var(--font-ui); color:var(--muted); margin-left:3px; letter-spacing:0}
-/* Labels: klein, Großbuchstaben, gesperrt, gedämpft */
-.lbl,.sec-h{font:600 var(--fs-label)/16px var(--font-ui); letter-spacing:var(--track-label); text-transform:uppercase; color:var(--muted)}
+.num small{font:500 .55em/1 var(--font-ui); color:var(--muted); margin-left:3px; letter-spacing:0}
+/* Labels: klein und gedämpft, ohne Großbuchstaben und Sperrung */
+.lbl{font:500 var(--fs-label)/18px var(--font-ui); color:var(--muted)}
+/* Abschnittsüberschrift: normale Schrift, kräftig, Nebentext rechts */
+.sec-h{font:600 17px/24px var(--font-ui); color:var(--text)}
+.sec-h .muted{font-size:var(--fs-small); color:var(--muted)}
 
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
 button:focus:not(:focus-visible){outline:none}
@@ -55,8 +59,11 @@ button:focus:not(:focus-visible){outline:none}
   display:flex; align-items:center; gap:var(--s-half);
   padding:calc(env(safe-area-inset-top) + var(--s2)) var(--s1) var(--s1) var(--pad);
 }
-.topbar h1{margin:0; font:600 24px/32px var(--font-ui); letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.top-sub{font-size:12px; line-height:16px; color:var(--muted); min-height:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.topbar h1{margin:0; font:var(--w-display) var(--fs-title)/1 var(--font-display); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:2px 0}
+/* Auf Heute ist die Kopfzeile nur das Datum, die Überschrift steht darunter groß */
+body.on-heute .topbar h1{font:400 15px/20px var(--font-ui); color:var(--muted); padding:0}
+body.on-heute .top-sub{display:none}
+.top-sub{font-size:13px; line-height:18px; color:var(--muted); min-height:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .icon-btn{
   width:44px; height:44px; border-radius:var(--r-pill); display:grid; place-items:center; flex:none;
   color:var(--text-2); transition:background var(--t-fast), color var(--t-fast);
@@ -70,17 +77,16 @@ main{padding:0 var(--pad)}
   position:fixed; z-index:10; left:0; right:0; bottom:0;
   height:calc(var(--tab-h) + var(--tab-safe)); padding-bottom:var(--tab-safe);
   display:grid; grid-template-columns:repeat(var(--tabs),1fr); align-items:stretch;
-  background:color-mix(in srgb, var(--bg) 88%, transparent);
-  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+  background:var(--surface);
   border-top:1px solid var(--line);
 }
 .tabbar button{
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--s-half);
-  min-height:44px; color:var(--muted); font:600 11px/16px var(--font-ui); letter-spacing:.02em;
+  min-height:44px; color:var(--muted); font:400 13px/16px var(--font-ui);
   transition:color var(--t-fast);
 }
 .tabbar button svg{width:24px; height:24px}
-.tabbar button.on{color:var(--accent)}
+.tabbar button.on{color:var(--accent); font-weight:600}
 
 /* ── 3. Karten, Abschnitte, Zeilen ──────────────────────────── */
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-card); padding:var(--pad)}
@@ -89,7 +95,7 @@ button.card{display:block; width:100%; text-align:left; transition:background va
 /* Eine Zeile, die zugleich Karte ist, bleibt eine Zeile (display:block aus .card würde sie umbrechen) */
 button.card.row{display:flex}
 button.card:active{background:var(--surface-2)}
-.sec-h{display:flex; align-items:center; gap:var(--s1); min-height:24px; margin:var(--s3) 0 var(--s1)}
+.sec-h{display:flex; align-items:baseline; gap:var(--s1); min-height:24px; margin:var(--s4) 0 var(--s1)}
 .sec-h:first-child{margin-top:var(--s1)}
 .note{color:var(--text-2); font-size:var(--fs-small); line-height:20px; margin:var(--s1) 0 0}
 
@@ -97,8 +103,8 @@ button.card:active{background:var(--surface-2)}
 .row{display:flex; align-items:center; gap:12px; min-height:56px; padding:var(--s1) var(--pad); width:100%; text-align:left; border-bottom:1px solid var(--line)}
 .row:last-child{border-bottom:0}
 .row .grow > *{display:block}
-.row .t{font-weight:500; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.row .sub{color:var(--muted); font-size:12px; line-height:16px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.row .t{font-weight:500; font-size:var(--fs-body); line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.row .sub{color:var(--muted); font-size:13px; line-height:18px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .row-wrap .t,.row-wrap .sub{white-space:normal}
 .row .end{display:flex; align-items:center; gap:var(--s1); text-align:right; flex:none; white-space:nowrap}
 button.row{transition:background var(--t-fast)}
@@ -118,12 +124,14 @@ svg.chev{width:16px; height:16px; color:var(--muted); flex:none}
 }
 .btn:active{transform:scale(.98); background:var(--surface-3)}
 .btn svg{width:20px; height:20px; flex:none}
-.btn-primary{background:var(--accent); color:var(--on-accent); border-color:transparent}
-.btn-danger{background:var(--st-low); color:var(--on-accent); border-color:transparent}
+.btn-primary{background:var(--accent-fill); color:var(--on-accent-fill); border-color:transparent}
+.btn-primary:active{background:var(--accent-fill); filter:brightness(.92)}
+.btn-danger{background:var(--st-low); color:var(--bg); border-color:transparent}
 .btn-block{display:flex; width:100%}
 .btn-block + .btn-block{margin-top:var(--s1)}
 .btn-sm{min-height:44px; padding:0 var(--s2); font-size:var(--fs-small)}
-.btn-xl{min-height:60px; font-size:17px; margin-bottom:var(--s1)}
+.btn-xl{min-height:64px; margin:var(--s3) 0 var(--s1); font:var(--w-display) 28px/1 var(--font-display); letter-spacing:.01em}
+.btn-xl svg{width:24px; height:24px}
 .btn-row{display:flex; gap:var(--s1); flex-wrap:wrap}
 .btn-row > .btn{flex:1; padding:0 var(--s2); white-space:nowrap}
 .btn[disabled]{opacity:.45; pointer-events:none}
@@ -132,8 +140,8 @@ svg.chev{width:16px; height:16px; color:var(--muted); flex:none}
 
 /* Pill: Veränderung (Pfeil und Zahl) oder ein kurzes Urteil */
 .pill{
-  display:inline-flex; align-items:center; gap:2px; height:24px; padding:0 10px; border-radius:var(--r-pill); flex:none;
-  font:600 12px/1 var(--font-ui); font-variant-numeric:tabular-nums; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:2px; height:26px; padding:0 8px; border-radius:var(--r-tag); flex:none;
+  font:600 13px/1 var(--font-ui); font-variant-numeric:tabular-nums; white-space:nowrap;
   background:var(--st-off-soft); color:var(--text-2);
 }
 .pill svg{width:12px; height:12px; flex:none}
@@ -165,13 +173,14 @@ svg.chev{width:16px; height:16px; color:var(--muted); flex:none}
 .seg button.on{background:var(--raised); color:var(--text)}
 
 .switch{flex:none; width:48px; height:28px; border-radius:var(--r-pill); background:var(--line-2); position:relative; transition:background var(--t-fast)}
-.switch::after{content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:var(--knob); transition:transform var(--t-mid) var(--ease-out)}
-.switch[aria-checked="true"]{background:var(--accent)}
+.switch::after{content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:2px; background:var(--knob); transition:transform var(--t-mid) var(--ease-out)}
+.switch[aria-checked="true"]{background:var(--accent-fill)}
+.switch[aria-checked="true"]::after{background:var(--on-accent-fill)}
 .switch[aria-checked="true"]::after{transform:translateX(20px)}
 
 /* Formulare. Um Knopfgruppen .lbl statt label (Regel 13). */
 label,.sheet .lbl{display:block; margin-bottom:var(--s2)}
-label{font:600 var(--fs-label)/16px var(--font-ui); letter-spacing:var(--track-label); text-transform:uppercase; color:var(--muted)}
+label{font:500 var(--fs-label)/18px var(--font-ui); color:var(--muted)}
 label > input, label > select{margin-top:var(--s1)}
 input[type="text"],input[type="number"],input[type="time"],input[type="date"],input:not([type]),select{
   display:block; width:100%; min-height:48px; padding:12px 14px; border-radius:var(--r-sm);
@@ -210,7 +219,7 @@ input:focus,select:focus{outline:none; border-color:var(--accent)}
 .chips-reps .chip{min-width:44px; justify-content:center; font-size:var(--fs-body, 16px)}
 .sheet-grip{width:36px; height:4px; border-radius:2px; background:var(--line-2); margin:var(--s1) auto 0; flex:none}
 .sheet-head{display:flex; align-items:center; gap:var(--s1); padding:0 var(--s1); border-bottom:1px solid var(--line); flex:none; min-height:52px}
-.sheet-head strong{flex:1; text-align:center; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.sheet-head strong{font:var(--w-display) 22px/1 var(--font-display); flex:1; text-align:center; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .sheet-head .link{min-width:88px; font-weight:500}
 .sheet-head .link:first-child{text-align:left}
 .sheet-head .link:last-child{text-align:right}
@@ -238,7 +247,7 @@ input:focus,select:focus{outline:none; border-color:var(--accent)}
 .hint.err{background:var(--st-low-soft)}  .hint.err > svg{color:var(--st-low)}
 
 .empty{text-align:center; padding:var(--s5) var(--s2) var(--s3); color:var(--text-2)}
-.empty h2{margin:0 0 var(--s1); color:var(--text); font-size:20px; line-height:28px; font-weight:600}
+.empty h2{margin:0 0 var(--s1); color:var(--text); font:var(--w-display) 40px/1 var(--font-display)}
 .empty p{margin:0 auto var(--s3); max-width:360px; font-size:var(--fs-small); line-height:20px}
 
 /* Eingabe-Karte: die Fläche öffnet das Sheet, der Knopf daneben trägt sofort
@@ -262,51 +271,63 @@ input:focus,select:focus{outline:none; border-color:var(--accent)}
 /* Dieselbe Reihe als erstes Element einer Karte: dann ohne Linie darüber */
 .stats-top{border-top:0; padding-top:0; margin-top:0}
 
-/* Startseite: Wochenkarte mit Tagesleiste */
-.weekcard{margin-top:var(--s1); margin-bottom:var(--s2)}
-.wk-top{display:flex; align-items:flex-start; gap:var(--s2)}
-.wk-top .grow{min-width:0}
-.wk-top .lbl{display:block}
-.wk-big{display:flex; align-items:baseline; gap:var(--s1); margin-top:var(--s-half)}
-.wk-big .num{font-size:var(--fs-big); line-height:52px}
-.wk-unit{color:var(--text-2); font-size:var(--fs-body); font-weight:500}
-.wk-side{display:flex; flex-direction:column; align-items:flex-end; gap:var(--s1); flex:none; padding-top:2px}
-.wk-side .sub{color:var(--muted); font-size:12px; line-height:16px; white-space:nowrap}
-.weekstrip{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:var(--s-half); list-style:none; margin:var(--s2) 0 0; padding:0}
+/* Startseite: große Überschrift mit Woche und Trainings, darunter die Tage */
+.wk-hero{margin:0 0 var(--s2)}
+.wk-title{margin:0; font:var(--w-display) var(--fs-display)/.95 var(--font-display); color:var(--text)}
+.wk-meta{margin-top:var(--s1); font-size:var(--fs-small); line-height:20px; color:var(--muted)}
+.wk-meta .pill{vertical-align:1px; margin-right:var(--s1)}
+.weekstrip{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; list-style:none; margin:var(--s3) 0 0; padding:0}
 .wd{display:flex; flex-direction:column; align-items:center; gap:6px; min-width:0}
-.wd .dot{display:grid; place-items:center; width:36px; height:36px; max-width:100%; border-radius:50%; background:var(--surface-2); border:1px solid var(--line-2)}
-.wd .dot svg{width:18px; height:18px; stroke-width:2.5}
-.wd .wd-l{font-size:12px; line-height:16px; color:var(--muted)}
-.wd.on .dot{background:var(--accent); border-color:transparent; color:var(--on-accent)}
-.wd.on .wd-l{color:var(--text)}
-.wd.today .dot{border:2px solid var(--accent); background:transparent}
-.wd.today .wd-l{color:var(--text); font-weight:600}
-.wd.next .dot{background:transparent; border-style:dashed}
+.wd .day{display:block; width:100%; height:8px; background:var(--day-off)}
+.wd .wd-l{font-size:var(--fs-label); line-height:18px; color:var(--muted)}
+.wd.on .day{background:var(--day-on)}
+.wd.today .wd-l{color:var(--text); font-weight:700}
+.wd.today:not(.on) .day{background:transparent; box-shadow:inset 0 0 0 2px var(--accent)}
+.wd.next .day{opacity:.55}
 
-/* Startseite: letztes Training, Kopf antippbar, je Übung der beste Satz */
-.lastcard .lt-head{display:flex; align-items:center; gap:12px; width:100%; min-height:64px; padding:var(--s2) var(--pad) 0; text-align:left}
-.lastcard .lt-head .grow{min-width:0}
-.lastcard .lt-head .grow > *{display:block}
-.lastcard .lt-head > svg{width:18px; height:18px; color:var(--muted); flex:none}
-.lt-when{font-size:20px; line-height:28px; font-weight:600}
-.lastcard .lt-head .sub{color:var(--muted); font-size:var(--fs-small); line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.lt-stats{margin:var(--s2) var(--pad) 0; padding-bottom:var(--s2); border-bottom:1px solid var(--line)}
-.lt-row{min-height:60px}
-.lt-row .grow{min-width:0}
-.row .lt-end{flex-direction:column; align-items:flex-end; gap:var(--s-half)}
-.lt-top{font-size:var(--fs-body); line-height:20px}
-.lt-end .pill{height:20px; padding:0 8px; font-size:11px}
+/* Startseite: letztes Training, je Übung der beste Satz, Scheiben rechts */
+.lt-headrow{display:flex; align-items:baseline; justify-content:space-between; gap:var(--s2); width:100%; min-height:44px; margin:var(--s4) 0 var(--s1); text-align:left}
+.lt-headrow .sec-h{margin:0}
+.lt-headrow .muted{font-size:var(--fs-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.lastlist{border-top:1px solid var(--line)}
+.lt-row{display:flex; align-items:center; gap:12px; width:100%; min-height:76px; padding:var(--s1) 0; border-bottom:1px solid var(--line); text-align:left; transition:background var(--t-fast)}
+button.lt-row:active{background:var(--surface)}
+.lt-row .grow{display:flex; flex-direction:column; gap:2px; min-width:0}
+.lt-name{font-size:var(--fs-body); line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lt-name .tag{margin-left:6px; vertical-align:1px; background:var(--accent-fill); color:var(--on-accent-fill)}
+.lt-val{font-size:var(--fs-set); line-height:1; white-space:nowrap}
+.lt-val small{font-size:16px; color:var(--text-2)}
+.lt-end{flex:none; display:flex; align-items:center}
+.lt-end .pill{height:28px}
+.lt-end .pill.st-good{background:var(--accent-fill); color:var(--on-accent-fill)}
+
+/* Hantelstange mit Scheiben je Seite, von der Hülse nach außen.
+   Höhe und Breite je Gewicht, Farbe nach Scheibencode. Nur Bild,
+   der Wert steht daneben als Text. */
+.barbell{display:flex; align-items:center; width:150px; flex:none}
+.barbell .sleeve{width:46px; height:6px; background:var(--bar-steel); flex:none}
+.barbell .collar{width:6px; height:22px; background:var(--bar-steel); flex:none}
+.barbell .plate{flex:none; margin-left:2px; border-radius:3px}
+.barbell .rest{flex:1; height:10px; min-width:4px; background:var(--bar-steel)}
+.barbell .more{flex:none; margin-left:4px; font:600 12px/1 var(--font-ui); color:var(--muted)}
+.plate.p25{width:13px; height:60px; background:var(--plate-25)}
+.plate.p20{width:12px; height:56px; background:var(--plate-20)}
+.plate.p15{width:11px; height:50px; background:var(--plate-15)}
+.plate.p10{width:10px; height:44px; background:var(--plate-10)}
+.plate.p5{width:8px; height:32px; background:var(--plate-5)}
+.plate.p2{width:6px; height:24px; background:var(--plate-2)}
+.plate.p1{width:5px; height:18px; background:var(--plate-1)}
 
 /* Laufendes Training: Dauer groß, Beenden daneben */
 .live-top{display:flex; align-items:center; gap:var(--s1)}
 .live-top .grow > *{display:block}
-.live-dur{font-size:28px; line-height:34px; letter-spacing:-.01em}
+.live-dur{font-size:var(--fs-big); line-height:1}
 
 /* Ein Block je Übung im Training: Kopf, Sätze, Knopf */
 .exblock{padding:var(--s1) var(--pad) var(--pad)}
 .ex-head{display:flex; align-items:center; gap:12px; width:100%; min-height:48px; text-align:left}
 .ex-head .grow > *{display:block}
-.ex-head .t{font-weight:600; line-height:22px}
+.ex-head .t{font:var(--w-display) 24px/28px var(--font-display)}
 .ex-head .sub{color:var(--muted); font-size:12px; line-height:16px; margin-top:2px}
 
 .setlist{margin:var(--s1) 0 var(--s2)}
@@ -314,15 +335,15 @@ input:focus,select:focus{outline:none; border-color:var(--accent)}
   border-radius:var(--r-sm); background:var(--surface-2); transition:background var(--t-fast)}
 .setrow:last-child{margin-bottom:0}
 .setrow:active{background:var(--surface-3)}
-.setrow .num{font-size:17px}
+.setrow .num{font-size:22px; line-height:1}
 .setrow svg{width:16px; height:16px; color:var(--muted); flex:none}
-.setno{flex:none; width:24px; height:24px; border-radius:50%; background:var(--surface-3); color:var(--muted);
+.setno{flex:none; width:24px; height:24px; border-radius:var(--r-tag); background:var(--surface-3); color:var(--muted);
   font:600 11px/24px var(--font-ui); text-align:center; font-variant-numeric:tabular-nums}
 
 /* Schon gelogte Sätze als Reihe im Satz-Formular */
 .setpills{display:flex; flex-wrap:wrap; gap:var(--s-half); margin:0 0 var(--s3)}
-.setpill{padding:4px 10px; border-radius:var(--r-pill); background:var(--surface-2); color:var(--text-2);
-  font:var(--w-num) 13px/18px var(--font-num); font-variant-numeric:tabular-nums}
+.setpill{padding:4px 10px; border-radius:var(--r-tag); background:var(--surface-2); color:var(--text-2);
+  font:var(--w-num) 16px/18px var(--font-num); font-variant-numeric:tabular-nums}
 .setpill.on{background:var(--accent-soft); color:var(--accent)}
 
 /* Pausenleiste: fest über der unteren Leiste, nur während einer Pause.
@@ -330,8 +351,7 @@ input:focus,select:focus{outline:none; border-color:var(--accent)}
 .restbar{
   position:fixed; z-index:11; left:0; right:0; bottom:calc(var(--tab-h) + var(--tab-safe));
   height:var(--rest-h); overflow:hidden;
-  background:color-mix(in srgb, var(--surface) 92%, transparent);
-  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+  background:var(--surface-2);
   border-top:1px solid var(--line);
 }
 .rest-prog{height:3px; background:var(--line-2)}
@@ -340,7 +360,7 @@ input:focus,select:focus{outline:none; border-color:var(--accent)}
 .rest-in .grow > *{display:block}
 .rest-ic{flex:none; color:var(--accent)}
 .rest-ic svg{width:22px; height:22px}
-.rest-time{font-size:22px; line-height:24px}
+.rest-time{font-size:32px; line-height:32px}
 .rest-in .btn{flex:none; padding:0 12px; min-height:44px; font-size:var(--fs-small)}
 body.with-rest{padding-bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h) + var(--s3))}
 body.with-rest .toast{bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h) + var(--s2))}
@@ -354,7 +374,7 @@ body.with-rest .toast{bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h)
 .step-b svg{width:22px; height:22px}
 .step-f{position:relative; flex:1; min-width:0; display:flex}
 .step-in{min-height:56px; text-align:center; padding-left:40px; padding-right:40px;
-  font:var(--w-num) 24px/32px var(--font-num); font-variant-numeric:tabular-nums}
+  font:var(--w-num) 32px/32px var(--font-num); font-variant-numeric:tabular-nums}
 .step-u{position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:var(--fs-small); pointer-events:none}
 
 /* Suchfeld mit Lupe */
@@ -363,8 +383,8 @@ body.with-rest .toast{bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h)
 .field-ic input{padding-left:42px}
 
 /* Kleine Marke in einer Zeile (Extras, „läuft") */
-.tag{display:inline-block; padding:2px 8px; border-radius:var(--r-pill); background:var(--surface-2); color:var(--muted);
-  font:600 11px/16px var(--font-ui); letter-spacing:.02em; white-space:nowrap}
+.tag{display:inline-block; padding:2px 8px; border-radius:var(--r-tag); background:var(--surface-2); color:var(--muted);
+  font:600 12px/16px var(--font-ui); white-space:nowrap}
 .row .spark{flex:none; width:64px; height:28px}
 
 /* ── 7. Diagramme ───────────────────────────────────────────── */
@@ -372,7 +392,7 @@ body.with-rest .toast{bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h)
 .chart svg{width:100%; height:auto; touch-action:pan-y; user-select:none; -webkit-user-select:none}
 .chart-empty{padding:var(--s4) 0; text-align:center; color:var(--muted); font-size:var(--fs-small)}
 .readout{display:flex; align-items:baseline; gap:var(--s1); min-height:24px; margin:0 4px var(--s-half); font-size:12px; line-height:16px; color:var(--muted)}
-.readout b{color:var(--text); font:var(--w-num) 16px/20px var(--font-num); font-variant-numeric:tabular-nums}
+.readout b{color:var(--text); font:var(--w-num) 20px/20px var(--font-num); font-variant-numeric:tabular-nums}
 .tr-text{margin:var(--s2) 0 0; padding-top:var(--s2); border-top:1px solid var(--line); line-height:24px; color:var(--text-2)}
 .tr-text b{color:var(--text)}
 
@@ -382,7 +402,7 @@ body.with-rest .toast{bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h)
 .ag0{stop-color:var(--cc); stop-opacity:var(--area-op)}
 .ag1{stop-color:var(--cc); stop-opacity:0}
 .grid{stroke:var(--grid); stroke-width:1; shape-rendering:crispEdges}
-.ax{fill:var(--ax); font:500 10px var(--font-ui); font-variant-numeric:tabular-nums}
+.ax{fill:var(--ax); font:500 11px var(--font-ui); font-variant-numeric:tabular-nums}
 .ax.cur{fill:var(--text); font-weight:600}
 .band{fill:var(--band)}
 .area{stroke:none}
@@ -420,7 +440,7 @@ body.with-rest .toast{bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h)
 .sec-h .grow{min-width:0}
 
 /* Übungsliste: Gruppen als Zwischenzeilen in einer Karte */
-.rows .row-h{font:600 var(--fs-label)/16px var(--font-ui); letter-spacing:var(--track-label); text-transform:uppercase; color:var(--muted);
+.rows .row-h{font:600 var(--fs-label)/18px var(--font-ui); color:var(--muted);
   padding:var(--s2) var(--pad) var(--s-half); background:var(--surface)}
 .rows .row-h:not(:first-child){border-top:1px solid var(--line)}
 .exlist .row{border-bottom:0; min-height:60px}

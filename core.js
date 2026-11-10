@@ -26,6 +26,32 @@ const TYPES = ['weight', 'bodyweight', 'time'];
 /* Übungen, die bisher in den Notizen standen. Feste, sprechende ids:
    sie stehen in jeder Einheit und sollen auch in einem alten Backup
    noch dieselbe Übung treffen. */
+/* Scheiben-Anzeige je Übung: '' keine (Maschine, Kabel, Kurzhantel),
+   'bar' Langhantel mit 20-kg-Stange (eingetragen ist das Gesamtgewicht),
+   'load' Scheiben direkt (eingetragen ist das Gewicht auf der einen Seite,
+   z. B. T-Bar). Fehlt das Feld in alten Daten, gibt der Name eine Vorgabe;
+   danach zählt nur noch, was in der Übung eingestellt ist. */
+const PLATES = ['', 'bar', 'load'];
+const BAR_KG = 20;
+function platesDefault(name) {
+  const n = String(name || '').toLowerCase();
+  if (/t-?bar/.test(n)) return 'load';
+  if (/^bankdrücken frei$|^squats?$|^kniebeuge|kreuzheben|deadlift/.test(n)) return 'bar';
+  return '';
+}
+
+/** Scheiben je Seite für ein Gewicht, schwerste zuerst. Rest, der sich
+    nicht mit Scheiben legen lässt, kommt als `rest` zurück. */
+const PLATE_KG = [25, 20, 15, 10, 5, 2.5, 1.25];
+function platesFor(weight, mode) {
+  if (!(weight > 0) || PLATES.indexOf(mode) < 1) return null;
+  let side = mode === 'bar' ? (weight - BAR_KG) / 2 : weight;
+  if (side < 0) return null;
+  const out = [];
+  PLATE_KG.forEach((p) => { while (side >= p - 1e-9) { out.push(p); side = Math.round((side - p) * 1000) / 1000; } });
+  return { plates: out, rest: side };
+}
+
 const SEED = [
   { id: 'bizeps',     name: 'Bizeps',                     group: 'Arme',       type: 'weight' },
   { id: 'bank-frei',  name: 'Bankdrücken frei',           group: 'Brust',      type: 'weight' },
@@ -77,8 +103,9 @@ const t0 = (iso) => { const t = Date.parse(iso); return isFinite(t) ? t : 0; };
 function blank() {
   return {
     v: 1,
-    exercises: SEED.map((e) => ({                 // {id, name, group, type, archived}
+    exercises: SEED.map((e) => ({                 // {id, name, group, type, archived, plates}
       id: e.id, name: e.name, group: e.group, type: e.type, archived: false,
+      plates: platesDefault(e.name),
     })),
     sessions: [],        // {id, date (ISO), end (ISO|null), note, extras[], items[{exerciseId, sets[]}]}
     bodyWeights: [],     // Körpergewicht: {date (ISO), kg}, höchstens ein Eintrag je Tag, neueste zuerst
@@ -144,6 +171,7 @@ function normalize(src, opts) {
         group: String(e.group == null ? '' : e.group).trim(),
         type: TYPES.indexOf(e.type) >= 0 ? e.type : 'weight',
         archived: !!e.archived,
+        plates: PLATES.indexOf(e.plates) >= 0 ? e.plates : platesDefault(e.name),
       };
     });
 
@@ -247,7 +275,8 @@ function planMerge(db, src, uid) {
     if (!byName.has(k)) {
       const m = meta.get(k) || {};
       const e = { id: uid(), name: String(name).trim(), group: String(m.group || '').trim(),
-        type: TYPES.indexOf(m.type) >= 0 ? m.type : 'weight', archived: false };
+        type: TYPES.indexOf(m.type) >= 0 ? m.type : 'weight', archived: false,
+        plates: PLATES.indexOf(m.plates) >= 0 ? m.plates : platesDefault(name) };
       byName.set(k, e); newEx.push(e);
     }
     return byName.get(k);
@@ -443,7 +472,7 @@ const typeMap = (exercises) => {
 };
 
 return {
-  TYPES, SEED, blank, normalize, cleanSet, planMerge, dayKey,
+  TYPES, SEED, PLATES, BAR_KG, platesDefault, platesFor, blank, normalize, cleanSet, planMerge, dayKey,
   cleanBodyWeights, bodyWeightOn, setBodyWeight, clock, epley, posOrNull,
   setVolume, sessionStats, lastSet, exercisePoints, bests,
   inRange, trend, weekStart, weekBuckets, typeMap,

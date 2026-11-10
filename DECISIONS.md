@@ -24,6 +24,9 @@
 
 - 1.5.0: Notiz und Extras werden erst im Beenden-Sheet abgefragt, nicht im laufenden Training. Grund: im Studio zählt nur das Loggen, der Rest störte. Nachträglich ändern geht weiter über das Training im Verlauf.
 
+- **2.0.0 (10.11.2026): Neugestaltung Scheiben** nach Artboard A des Design-Artifacts „PWA Startseiten". Funktionen unverändert, neu ist die Darstellung. Archivo und Big Shoulders Display ersetzen Inter und Space Grotesk.
+- **Scheiben-Anzeige als Einstellung je Übung (`plates`), 2.0.0.** Ob ein Gewicht eine Langhantel mit 20-kg-Stange, nur Scheiben (T-Bar) oder eine Maschine ist, steht nicht in den Daten. Deshalb ein Feld je Übung, einstellbar in „Übung bearbeiten". Fehlt es in alten Daten, gibt der Name eine Vorgabe (`Core.platesDefault`: Bankdrücken frei, Squats/Kniebeuge, Kreuzheben → Langhantel; T-Bar → nur Scheiben; sonst keine). Aufteilung je Seite gierig mit möglichst wenig Scheiben (25 bis 1,25 kg); was sich nicht legen lässt, steht nur im Bildtext. Die Grafik ersetzt keinen Wert, die Zahl steht immer daneben.
+
 ## Abweichungen vom Skill
 1. **Einstellungen als vierter Tab statt als Sheet.** Das Briefing nennt sie als eigene Ansicht, und Pausenzeit, Übungsverwaltung, Backup und Theme sind zusammen zu viel für ein Sheet. `--tabs` steht deshalb auf 4.
 2. **Zahlenfelder sind `type="text"` mit `inputmode="decimal"`** statt `type="number"` mit `step="any"`. Android verwirft bei `type="number"` das deutsche Komma, der Wert kommt leer an. `num()` parst Komma und Punkt gleich, die Tastatur bleibt die Zifferntastatur.
@@ -45,6 +48,8 @@ Nur am Handy prüfbar:
 - [ ] Übungswahl: bei offener Tastatur sind die Suchtreffer sichtbar (Chrome Android, `visualViewport`)
 - [ ] Erinnerung ans Körpergewicht erscheint beim ersten Trainingsstart des Tages und nicht beim zweiten
 - [ ] 1.5.0 mit echten Daten: "Bestwert"-Pills auf Heute nicht zu häufig, Muskelgruppen im Verlauf aussagekräftig (importierte Übungen ohne Gruppe zeigen den Namen)
+
+- [ ] 2.0.0: Scheiben-Vorgaben passen zu den eigenen Übungen (sonst in Übung bearbeiten umstellen)
 
 Sonstiges: nichts offen. Geprüft und in Ordnung: Pausenleiste und untere Leiste sitzen
 in 375 px exakt aneinander statt übereinander (Pausenleiste 576–636, Tableiste 636–700),

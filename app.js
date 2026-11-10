@@ -25,7 +25,7 @@
 const KEY = 'gym.v1';
 /* Bei jeder Änderung hochzählen: wird in den Einstellungen angezeigt, damit
    sich auf dem Handy prüfen lässt, welche Fassung wirklich läuft. */
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '2.0.0';
 
 const THEME_KEY = 'gym.theme';
 const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Gerätesache, nicht im Backup
@@ -33,11 +33,12 @@ const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Ger�
    <meta name="theme-color">, damit die Systemleiste des Handys mitzieht.
    Muss mit --bg in tokens.css übereinstimmen (einzige erlaubte feste Farbe). */
 const THEMES = {
-  dark:  { label: 'Dunkel', bar: '#0E1116' },
-  light: { label: 'Hell',   bar: '#F4F6F8' },
+  dark:  { label: 'Dunkel', bar: '#1D1C1A' },
+  light: { label: 'Hell',   bar: '#F2EFE8' },
 };
 
 const TYPE_LABEL = { weight: 'Gewicht', bodyweight: 'Körpergewicht', time: 'Zeit' };
+const PLATES_LABEL = { '': 'Keine', bar: 'Langhantel', load: 'Nur Scheiben' };
 /* Markierungen für eine Einheit. „Sauna" stand in den Notizen, Cardio und
    Dehnen sind dazugekommen, weil sie genauso nebenher laufen. */
 const EXTRAS = [['sauna', 'Sauna'], ['cardio', 'Cardio'], ['stretch', 'Dehnen']];
@@ -64,6 +65,7 @@ const dfAxis = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'numeri
 const dfShort = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'numeric', year: '2-digit' });
 const dfClock = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
 const dfToday = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'short' });
+const dfDayLong = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
 /* Eingaben können deutsches Komma enthalten, parseFloat allein verschluckt es. */
 const num = (v) => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
@@ -223,7 +225,8 @@ function render() {
   for (const k of readers.keys()) if (k[0] === 'v') readers.delete(k);
   /* Auf Heute steht das Datum: „Heute" wiederholte nur den Namen des Tabs. */
   $('#viewTitle').textContent = view === 'uebung' && curEx ? exName(curEx)
-    : view === 'heute' ? dfToday.format(new Date()) : (TITLES[view] || '');
+    : view === 'heute' ? (activeSession() ? 'Training' : dfDayLong.format(new Date())) : (TITLES[view] || '');
+  document.body.classList.toggle('on-heute', view === 'heute' && !activeSession());
   if (view === 'heute') renderHeute();
   else if (view === 'verlauf') renderVerlauf();
   else if (view === 'uebungen') renderUebungen();
@@ -280,7 +283,7 @@ function runAnims(root) {
 function renderHeute() {
   const el = $('#view-heute');
   const se = activeSession();
-  $('#topSub').textContent = se ? 'Training läuft' : '';
+  $('#topSub').textContent = se ? dfDayLong.format(new Date()) : '';
   el.innerHTML = se ? liveSession(se) : noSession();
 }
 
@@ -297,16 +300,16 @@ function noSession() {
   }
   const last = db.sessions.find((s) => s.id !== db.active) || db.sessions[0];
   return `${weekCard(types)}
-    <button class="btn btn-primary btn-block btn-xl" data-act="start">${ICON.play}Training starten</button>
+    <button class="btn btn-primary btn-block btn-xl" data-act="start">Training starten</button>
     ${lastCard(last, types)}`;
 }
 
 /* Kurzer Wochentag für die Wochenleiste, Montag zuerst. */
 const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
-/** Wochenkarte: Tage als Leiste (trainiert, heute, kommend), dazu Zahl der
-    Trainings und Wochen in Folge. Ersetzt die Nullen-Reihe, die montags
-    immer leer war. Zeigt, bewertet nicht. */
+/** Kopf der Startseite: Kalenderwoche und Zahl der Trainings groß, darunter
+    die Tage als Leiste (trainiert, heute, kommend) und Wochen in Folge.
+    Zeigt, bewertet nicht. */
 function weekCard(types) {
   const now = Date.now();
   const start = Core.weekStart(now);
@@ -315,33 +318,57 @@ function weekCard(types) {
     const d = new Date(start); d.setDate(d.getDate() + i);
     return { wd, t: d.getTime(), n: 0 };
   });
+  let count = 0;
   db.sessions.forEach((se) => {
     const d = new Date(se.date); d.setHours(0, 0, 0, 0);
     const day = days.find((x) => x.t === d.getTime());
-    if (day) day.n++;
+    if (day) { day.n++; count++; }
   });
-  const done = days.filter((d) => d.n).length;
   const weeks = Core.weekBuckets(db.sessions, 52, types, now);
   const prev = weeks[weeks.length - 2];
   // Wochen in Folge: die laufende zählt nur, wenn schon trainiert wurde
   let streak = 0;
   for (let i = weeks.length - (weeks[weeks.length - 1].sessions ? 1 : 2); i >= 0 && weeks[i].sessions; i--) streak++;
   const cells = days.map((d) => {
-    const cls = d.n ? 'on' : (d.t === today.getTime() ? 'today' : (d.t > today.getTime() ? 'next' : ''));
+    const cls = [d.n ? 'on' : '', d.t === today.getTime() ? 'today' : '', d.t > today.getTime() ? 'next' : ''].filter(Boolean).join(' ');
     const label = `${d.wd}: ${d.n ? plural(d.n, 'Training', 'Trainings') : 'kein Training'}`;
-    return `<li class="wd ${cls}" aria-label="${esc(label)}"><span class="dot">${d.n ? ICON.check : ''}</span><span class="wd-l">${d.wd}</span></li>`;
+    return `<li class="wd ${cls}" aria-label="${esc(label)}"><span class="day"></span><span class="wd-l" aria-hidden="true">${d.wd}</span></li>`;
   }).join('');
-  return `<div class="card weekcard">
-    <div class="wk-top">
-      <span class="grow"><span class="lbl">Diese Woche</span>
-      <span class="wk-big"><span class="num">${countNum(done)}</span><span class="wk-unit">${done === 1 ? 'Training' : 'Trainings'}</span></span></span>
-      <span class="wk-side">
-        ${streak > 1 ? `<span class="pill">${ICON.flame}${esc(nf0.format(streak))} Wochen am Stück</span>` : ''}
-        <span class="sub">Letzte Woche ${esc(nf0.format(prev ? prev.sessions : 0))}</span>
-      </span>
-    </div>
-    <ol class="weekstrip">${cells}</ol>
+  return `<div class="wk-hero">
+    <h2 class="wk-title">Woche ${esc(nf0.format(isoWeek(now)))}<br>${countNum(count)} ${count === 1 ? 'Training' : 'Trainings'}</h2>
+    <ol class="weekstrip" aria-label="Trainingstage dieser Woche">${cells}</ol>
+    <div class="wk-meta">${streak > 1 ? `<span class="pill">${ICON.flame}${esc(nf0.format(streak))} Wochen am Stück</span>` : ''}Letzte Woche ${esc(plural(prev ? prev.sessions : 0, 'Training', 'Trainings'))}</div>
   </div>`;
+}
+
+/** Satz groß für die Startseite: Zahl in Display-Schrift, Einheit klein. */
+function setBig(st, type) {
+  if (!st) return '–';
+  const n = (v) => (fin(v) ? esc(nfa.format(v)) : '–');
+  if (type === 'time') return esc(Core.clock(st.seconds));
+  if (type === 'bodyweight') {
+    return `${n(st.reps)}<small>Wdh</small>` + (fin(st.extra) && st.extra > 0 ? ` +${n(st.extra)}<small>kg</small>` : '');
+  }
+  return `${n(st.weight)}<small>kg</small> × ${n(st.reps)}`;
+}
+
+/** Hantelstange mit Scheiben je Seite als Bild. Nur für Übungen, bei denen
+    die Scheiben eingestellt sind; sonst null. Der Wert steht als Text daneben. */
+function barbell(ex, st) {
+  if (!ex || ex.type !== 'weight' || !st || !fin(st.weight)) return null;
+  const r = Core.platesFor(st.weight, ex.plates);
+  if (!r) return null;
+  const cls = { 25: 'p25', 20: 'p20', 15: 'p15', 10: 'p10', 5: 'p5', 2.5: 'p2', 1.25: 'p1' };
+  const shown = r.plates.slice(0, 6);
+  const label = r.plates.length
+    ? `${ex.plates === 'bar' ? 'Stange mit ' : ''}${r.plates.map((p) => nfa.format(p)).join(', ')} kg ${ex.plates === 'bar' ? 'je Seite' : 'Scheiben'}`
+    : 'Leere Stange';
+  return `<span class="barbell" role="img" aria-label="${esc(label + (r.rest ? `, ${nfa.format(r.rest)} kg nicht als Scheibe` : ''))}">
+    ${ex.plates === 'bar' ? '<span class="sleeve"></span><span class="collar"></span>' : '<span class="collar"></span>'}
+    ${shown.map((p) => `<span class="plate ${cls[p]}"></span>`).join('')}
+    ${r.plates.length > shown.length ? `<span class="more">+${esc(nf0.format(r.plates.length - shown.length))}</span>` : ''}
+    <span class="rest"></span>
+  </span>`.replace(/\n\s*/g, '');
 }
 
 /** Bester Satz einer Übung in einer Einheit: schwerstes Gewicht (bei
@@ -377,7 +404,11 @@ function exCompare(ex, sessionId) {
 /** Pill neben dem Topsatz: Bestwert, Veränderung oder nichts. */
 function comparePill(c, type) {
   if (!c || c.first) return '';
-  if (c.pr) return `<span class="pill st-good">${ICON.trophy}Bestwert</span>`;
+  if (c.pr) {
+    const unit = type === 'weight' ? ' kg' : (type === 'time' ? ' s' : '');
+    const more = c.diff > 0 ? `, ${nfa.format(c.diff)}${unit} mehr` : '';
+    return `<span class="pill st-good">Bestwert${esc(more)}</span>`;
+  }
   if (!c.diff) return '';
   const unit = type === 'weight' ? ' kg' : (type === 'time' ? ' s' : '');
   return `<span class="pill">${c.diff > 0 ? ICON.up : ICON.down}${esc(nfa.format(Math.abs(c.diff)))}${unit}</span>`;
@@ -392,35 +423,29 @@ function ago(iso, lower) {
   return lower && d < 7 ? t.charAt(0).toLowerCase() + t.slice(1) : t;
 }
 
-/** Karte letztes Training: Kopf mit Datum und Dauer, Kennwerte, dann je
-    Übung der beste Satz mit Vergleich zum vorigen Mal. */
+/** Letztes Training: Kopf mit Tag (öffnet das Training), dann je Übung
+    der beste Satz groß; rechts die Scheiben, wenn eingestellt, sonst der
+    Vergleich zum vorigen Mal. */
 function lastCard(se, types) {
-  const st = Core.sessionStats(se, types);
-  const mins = st.dur != null ? Math.round(st.dur / 60) : null;
   const rows = se.items.map((it) => {
     const ex = exById(it.exerciseId);
     const type = ex ? ex.type : 'weight';
     const top = topSet(it.sets, type);
     const cmp = ex ? exCompare(ex, se.id) : null;
-    return `<button class="row lt-row" ${ex ? `data-act="ex" data-id="${esc(ex.id)}"` : 'disabled'}>
-      <span class="grow"><span class="t">${esc(ex ? ex.name : 'Gelöschte Übung')}</span>
-      <span class="sub">${esc(plural(it.sets.length, 'Satz', 'Sätze'))}</span></span>
-      <span class="end lt-end"><span class="num lt-top">${top ? esc(setText(top, type)) : '–'}</span>${comparePill(cmp, type)}</span>
+    const bb = barbell(ex, top);
+    const pill = comparePill(cmp, type);
+    const tag = bb && cmp && cmp.pr ? '<span class="tag">Bestwert</span>' : '';
+    return `<button class="lt-row" ${ex ? `data-act="ex" data-id="${esc(ex.id)}"` : 'disabled'}>
+      <span class="grow"><span class="lt-name">${esc(ex ? ex.name : 'Gelöschte Übung')}${tag}</span>
+      <span class="num lt-val">${setBig(top, type)}</span></span>
+      <span class="lt-end">${bb || pill}</span>
     </button>`;
   }).join('');
-  return `<div class="sec-h">Letztes Training</div>
-    <div class="rows lastcard">
-      <button class="lt-head" data-act="session" data-id="${esc(se.id)}">
-        <span class="grow"><span class="lt-when">${esc(ago(se.date))}</span>
-        <span class="sub">${esc(dfDay.format(new Date(se.date)))} · ${esc(dfClock.format(new Date(se.date)))} Uhr${se.extras.length ? ' · ' + esc(se.extras.map(extraLabel).join(', ')) : ''}</span></span>${ICON.chev}
-      </button>
-      <div class="stats lt-stats">
-        <div><span class="lbl">Dauer</span><span class="num">${mins != null ? `${countNum(mins)}<small>min</small>` : '–'}</span></div>
-        <div><span class="lbl">Sätze</span><span class="num">${countNum(st.sets)}</span></div>
-        <div><span class="lbl">Volumen</span><span class="num">${countNum(st.volume)}<small>kg</small></span></div>
-      </div>
-      ${rows}
-    </div>`;
+  return `<button class="lt-headrow" data-act="session" data-id="${esc(se.id)}">
+      <span class="sec-h">Letztes Training</span>
+      <span class="muted">${esc(ago(se.date))}, bester Satz</span>
+    </button>
+    <div class="lastlist">${rows || `<p class="note">${esc(sessionLine(Core.sessionStats(se, types)))}</p>`}</div>`;
 }
 
 const sessionLine = (st) => `${plural(st.exercises, 'Übung', 'Übungen')} · ${plural(st.sets, 'Satz', 'Sätze')}`
@@ -1351,10 +1376,17 @@ function newExercise(then, back) {
     <div class="lbl">Art der Übung</div>
     ${seg('type', Core.TYPES.map((t) => [t, TYPE_LABEL[t]]), 'weight')}
     <p class="note">Gewicht: Hantel oder Maschine. Körpergewicht: Wiederholungen, optional mit Zusatzgewicht. Zeit: gehaltene Dauer.</p>
+    <div id="f_platesBox">
+    <div class="lbl">Scheiben auf der Startseite</div>
+    ${seg('plates', Core.PLATES.map((v) => [v, PLATES_LABEL[v]]), '')}
+    <p class="note">Langhantel: eingetragen ist das Gesamtgewicht mit 20-kg-Stange. Nur Scheiben: eingetragen ist das Gewicht auf einer Seite, z. B. T-Bar.</p>
+    </div>
   `, () => {
     const name = $('#f_name').value.trim();
     if (!name) { toast('Name fehlt'); return; }
-    const e = { id: uid(), name, group: $('#f_group').value.trim(), type: sheetSeg.type || 'weight', archived: false };
+    const type = sheetSeg.type || 'weight';
+    const e = { id: uid(), name, group: $('#f_group').value.trim(), type, archived: false,
+      plates: type === 'weight' ? (sheetSeg.plates || '') : '' };
     db.exercises.push(e);
     save();
     closeSheet();
@@ -1364,10 +1396,8 @@ function newExercise(then, back) {
   }, 'Anlegen');
   if (back) $('#sheetCancel').onclick = back;
   sheetSeg.type = 'weight';
-  $('#sheetBody').onclick = (e) => {
-    const s = e.target.closest('[data-seg="type"]');
-    if (s) pickSeg('type', s);
-  };
+  sheetSeg.plates = '';
+  $('#sheetBody').onclick = exSegClick;
 }
 
 function editExercise(id, back) {
@@ -1382,6 +1412,11 @@ function editExercise(id, back) {
       <datalist id="grpList2">${groups.map((g) => `<option value="${esc(g)}"></option>`).join('')}</datalist></label>
     <div class="lbl">Art der Übung</div>
     ${seg('type', Core.TYPES.map((t) => [t, TYPE_LABEL[t]]), ex.type)}
+    <div id="f_platesBox"${ex.type === 'weight' ? '' : ' class="hidden"'}>
+    <div class="lbl">Scheiben auf der Startseite</div>
+    ${seg('plates', Core.PLATES.map((v) => [v, PLATES_LABEL[v]]), ex.plates)}
+    <p class="note">Langhantel: eingetragen ist das Gesamtgewicht mit 20-kg-Stange. Nur Scheiben: eingetragen ist das Gewicht auf einer Seite, z. B. T-Bar.</p>
+    </div>
     ${used ? `<p class="note">In ${plural(used, 'Training', 'Trainings')} erfasst. Ein anderer Typ ändert nur die Anzeige, gespeicherte Sätze bleiben.</p>` : ''}
     <button class="btn btn-block" id="f_arch">${ex.archived ? ICON.restore + 'Wieder aufnehmen' : ICON.archive + 'Archivieren'}</button>
     <button class="btn btn-danger btn-block" id="f_del">${ICON.trash}Übung löschen</button>
@@ -1391,14 +1426,13 @@ function editExercise(id, back) {
     ex.name = name;
     ex.group = $('#f_group').value.trim();
     ex.type = sheetSeg.type || ex.type;
+    if (ex.type === 'weight') ex.plates = sheetSeg.plates != null ? sheetSeg.plates : ex.plates;
     save(); closeSheet(); render(); toast('Gespeichert');
   });
   if (back) $('#sheetCancel').onclick = back;
   sheetSeg.type = ex.type;
-  $('#sheetBody').onclick = (e) => {
-    const s = e.target.closest('[data-seg="type"]');
-    if (s) pickSeg('type', s);
-  };
+  sheetSeg.plates = ex.plates || '';
+  $('#sheetBody').onclick = exSegClick;
   $('#f_arch').onclick = () => {
     ex.archived = !ex.archived;
     save(); closeSheet();
@@ -1818,6 +1852,15 @@ function onChartPointer(e) {
 /** Segmented Control für 2 bis 5 feste Optionen. */
 const seg = (name, opts, cur) => `<div class="seg">${opts.map(([v, l]) =>
   `<button data-seg="${esc(name)}" data-v="${esc(v)}" class="${String(v) === String(cur) ? 'on' : ''}" aria-pressed="${String(v) === String(cur)}">${esc(l)}</button>`).join('')}</div>`;
+
+/** Segmente im Übungs-Sheet: Art und Scheiben. Die Scheiben-Wahl gibt es
+    nur bei Gewicht, bei den anderen Arten wird sie ausgeblendet. */
+function exSegClick(e) {
+  const s = e.target.closest('[data-seg]');
+  if (!s) return;
+  pickSeg(s.dataset.seg, s);
+  if (s.dataset.seg === 'type') $('#f_platesBox').classList.toggle('hidden', s.dataset.v !== 'weight');
+}
 
 /** Auswahl eines Segments im Sheet übernehmen (Zustand in sheetSeg). */
 function pickSeg(name, btn) {
