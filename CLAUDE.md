@@ -9,7 +9,7 @@ Trainingslogger fürs Handy, im Studio mit einer Hand bedienbar: große Flächen
 
 Schriften: Archivo (Text) und Big Shoulders Display (Zahlen, Überschriften), beide variabel, OFL, in `fonts/`.
 
-Akzent: `--accent` für Text und Linien (`#E8B923` dunkel, `#7D5900` hell wegen Kontrast), `--accent-fill`/`--on-accent-fill` für Flächen mit Schrift (in beiden Themes Gelb mit dunkler Schrift). Nur primäre Aktionen, aktiver Tab/Chip, Pausenleiste, Hauptlinie und Balken der Diagramme, Bestwert-Marke.
+Akzent: `--accent` für Text und Linien (`#E8B923` dunkel, `#7D5900` hell wegen Kontrast), `--accent-fill`/`--on-accent-fill` für Flächen mit Schrift (in beiden Themes Gelb mit dunkler Schrift). Nur primäre Aktionen, aktiver Tab/Chip, Pausenleiste, Hauptlinie und Balken der Diagramme, Trainingstage der Monatsansicht, Bestwert-Marke.
 
 ## Eigene Tokens in tokens.css
 | Token | Zweck |
@@ -39,8 +39,14 @@ Gelöscht, weil ohne Kennzahlen-Dashboard unbenutzt: Hero, Gauge, Metrik-Karte (
 | Kopf auf Heute: Woche und Zahl der Trainings groß, Tagesleiste Mo bis So als Balken, Wochen am Stück | `weekCard()` in `app.js`, `.wk-hero`/`.weekstrip`/`.wd` in `style.css` |
 | Letztes Training: je Übung bester Satz groß, rechts Hantel mit Scheiben oder Bestwert-/Änderungs-Pill | `lastCard()`, `setBig()`, `barbell()`, `topSet()`, `exCompare()` in `app.js`, `.lt-*`/`.barbell`/`.plate` in `style.css` |
 | Scheiben je Seite (gierig 25/20/15/10/5/2,5/1,25 kg), Einstellung je Übung `plates` (`''`, `bar`, `load`) | `Core.platesFor()`, `Core.platesDefault()`, Segment in `newExercise()`/`editExercise()` |
-| Verlauf nach Kalenderwochen (Diese Woche, Letzte Woche, KW n), je Training Muskelgruppen statt Übungsnamen | `sessionWeeks()`, `sessionGroups()`, `isoWeek()` in `app.js` |
-| Übungsliste als eine Karte mit Gruppen-Zwischenzeilen | `exListHtml()` in `app.js`, `.row-h`/`.exlist` in `style.css` |
+| Übersichten ohne Scrollen (Verlauf, Übungen): `body.fit` füllt den Platz zwischen Kopf- und unterer Leiste; reicht er nicht, scrollt die Ansicht in sich | `render()` in `app.js`, `body.fit` in `style.css` |
+| Monatsansicht im Verlauf, Trainingstage gefüllt, Zeilenhöhe nach Bildschirmhöhe (`--cal-row`) | `monthCard()`, `openDay()` in `app.js`, `Core.monthDays()`, `.cal`/`.cd` in `style.css` |
+| Körpergewicht im Verlauf: Diagramm füllt die Resthöhe, deshalb nach dem Rendern gemessen und gezeichnet | `bodyWeightCard()`, `drawBodyWeight()` in `app.js`, `.bw` in `style.css` |
+| Unterseite Einheiten: Trainings nach Kalenderwochen (Diese Woche, Letzte Woche, KW n), je Training Muskelgruppen statt Übungsnamen | `renderEinheiten()`, `sessionWeeks()`, `sessionRow()`, `sessionGroups()`, `isoWeek()` in `app.js` |
+| Kacheln je Muskelgruppe, Unterseite der Gruppe; bis 6 Kacheln dreizeilig, bis 10 zweizeilig, darüber drei Spalten | `groupTiles()`, `renderGruppe()` in `app.js`, `.tile` in `style.css` |
+| Muskelgruppe nach dem Namen (einmalig, Merker `groupsGuessed`) | `Core.groupGuess()`, `normalize()` in `core.js` |
+| Unterseiten und ihr Rückweg | `TAB_OF`, `parentView()` in `app.js` |
+| Suchtreffer der Übungen als eine Karte mit Gruppen-Zwischenzeilen | `exListHtml()` in `app.js`, `.row-h`/`.exlist` in `style.css` |
 | Übungsseite: ein Diagramm mit Kennzahl-Umschalter, Ablesezeile zeigt zuerst den letzten Wert | `chartBlock()`, `METRICS` in `app.js` |
 | Beenden-Sheet mit Zusammenfassung, Notiz und Extras | `endSession()`, `wireExtraChips()` in `app.js` |
 | Einstellungen als gruppierte Zeilen, Umschalter in `.row-stack` | `renderEinst()` in `app.js`, `.row-stack` in `style.css` |

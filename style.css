@@ -389,7 +389,7 @@ body.with-rest .toast{bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h)
 
 /* ── 7. Diagramme ───────────────────────────────────────────── */
 .chart{position:relative; margin:0 -4px}
-.chart svg{width:100%; height:auto; touch-action:pan-y; user-select:none; -webkit-user-select:none}
+.chart svg{width:100%; height:auto; overflow:visible; /* letzte Beschriftung ragt sonst über den Rand */ touch-action:pan-y; user-select:none; -webkit-user-select:none}
 .chart-empty{padding:var(--s4) 0; text-align:center; color:var(--muted); font-size:var(--fs-small)}
 .readout{display:flex; align-items:baseline; gap:var(--s1); min-height:24px; margin:0 4px var(--s-half); font-size:12px; line-height:16px; color:var(--muted)}
 .readout b{color:var(--text); font:var(--w-num) 20px/20px var(--font-num); font-variant-numeric:tabular-nums}
@@ -463,5 +463,76 @@ div.row{cursor:default}
 /* Beenden-Sheet: Zusammenfassung oben */
 .end-stats{margin-bottom:var(--s3)}
 
-/* Körpergewicht im Verlauf: Knöpfe mit Abstand zur Kennwert-Reihe */
-.bw-btns{margin-top:var(--s2)}
+/* ── 2.1: Übersichten auf einem Bildschirm ──────────────────── */
+/* Verlauf und Übungen füllen genau den Platz zwischen Kopf- und unterer
+   Leiste. Reicht er nicht (sehr kleines Gerät, große Schrift), scrollt die
+   Ansicht in sich, nichts wird abgeschnitten. */
+body.fit{height:100vh; height:100dvh; min-height:0; overflow:hidden; display:flex; flex-direction:column;
+  padding-bottom:calc(var(--tab-h) + var(--tab-safe) + var(--s1)); --rest-now:0px}
+body.fit.with-rest{padding-bottom:calc(var(--tab-h) + var(--tab-safe) + var(--rest-h) + var(--s1)); --rest-now:var(--rest-h)}
+/* Bildschirmtastatur offen: sie liegt über der unteren Leiste, die Treffer enden darüber */
+body.fit.kb-open{height:var(--vvh, 100dvh); padding-bottom:0}
+body.fit .topbar{flex:none}
+body.fit .top-sub:empty{display:none}
+body.fit main{flex:1; min-height:0; width:100%; display:flex; flex-direction:column}
+body.fit .view{flex:1; min-height:0; display:flex; flex-direction:column; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:none}
+body.fit .view::-webkit-scrollbar{display:none}
+
+/* Monatsansicht: Trainingstage gefüllt, heute mit Rahmen. Die Zeilenhöhe
+   folgt der Bildschirmhöhe, damit auch sechs Wochen hineinpassen. */
+.cal{flex:none; --cal-row:clamp(34px, calc((100dvh - var(--rest-now, 0px)) * .063), 60px)}
+.cal-head{display:flex; align-items:center; text-align:center; min-height:44px}
+.cal-head .icon-btn[disabled]{opacity:.3; pointer-events:none}
+.cal-title{margin:0; font:var(--w-display) 24px/24px var(--font-display)}
+.cal-n{font-size:13px; line-height:18px; color:var(--muted)}
+.cal-grid{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:2px; grid-auto-rows:var(--cal-row)}
+.cal-wd{grid-auto-rows:20px; margin-top:var(--s-half)}
+.cal-wd span{font-size:var(--fs-label); line-height:20px; color:var(--muted); text-align:center}
+.cd{position:relative; display:flex; align-items:center; justify-content:center; border-radius:var(--r-sm);
+  background:var(--surface); color:var(--muted); font:400 15px/1 var(--font-ui); font-variant-numeric:tabular-nums}
+.cd.next{background:transparent}
+.cd.on{background:var(--accent-fill); color:var(--on-accent-fill); font:var(--w-display) 22px/1 var(--font-num); transition:transform var(--t-fast)}
+.cd.on:active{transform:scale(.94)}
+.cd.today:not(.on){box-shadow:inset 0 0 0 2px var(--accent); color:var(--text); font-weight:700}
+.cd.today.on{box-shadow:inset 0 0 0 2px var(--accent-fill), inset 0 0 0 4px var(--on-accent-fill)}
+.cd small{position:absolute; right:4px; bottom:3px; font:600 11px/1 var(--font-ui)}
+.cal-more{flex:none; margin:var(--s1) 0}
+/* Niedrige Bildschirme: ein Monat mit sechs Wochen soll trotzdem ganz hineinpassen */
+@media(max-height:680px){
+  .cal{--cal-row:clamp(32px, calc((100dvh - var(--rest-now, 0px)) * .058), 44px)}
+  .cal-more{min-height:44px}
+}
+
+/* Körpergewicht: Wert in der Ablesezeile, Knöpfe daneben, die Linie nimmt
+   den Rest der Höhe (drawBodyWeight in app.js) */
+.bw{position:relative; display:flex; flex-direction:column; padding:var(--s1) 12px}
+body.fit .bw{flex:1 1 0; min-height:108px; max-height:300px}
+body.fit .bw.bw-one,body.fit .bw.bw-none{flex:none; min-height:0}
+.bw.bw-none{flex-direction:row; align-items:center; gap:12px}
+.bw-none .note{margin:0}
+.bw .lbl,.bw .readout{padding-right:92px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bw-none .lbl{padding-right:0}
+.bw .readout{align-items:baseline; margin-bottom:0}
+.bw-btns{position:absolute; top:4px; right:4px; display:flex}
+.bw-chart{height:200px}
+.bw-one .bw-chart{height:auto}
+body.fit .bw-chart{flex:1 1 0; min-height:0}
+body.fit .bw-one .bw-chart{flex:none}
+
+/* Übungen: eine Kachel je Muskelgruppe. Die Zeilen teilen sich die Höhe. */
+#exList{flex:1; min-height:0}
+body.fit #exList{overflow-y:auto; scrollbar-width:none; overscroll-behavior:contain}
+body.fit .field-ic{flex:none}
+.tiles{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); grid-auto-rows:minmax(64px,150px); gap:var(--s1); height:100%}
+.tile{min-width:0; display:flex; flex-direction:column; justify-content:center; gap:var(--s-half); padding:var(--s1) 14px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r-card); transition:background var(--t-fast)}
+.tile:active{background:var(--surface-2)}
+.tile-t{font:var(--w-display) 24px/26px var(--font-display); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tile-s{display:flex; flex-direction:column; font-size:13px; line-height:18px; color:var(--muted)}
+.tile-s span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tiles-dense .tile-s,.tiles-3 .tile-s{flex-direction:row; justify-content:space-between; gap:var(--s-half)}
+.tiles-3{grid-template-columns:repeat(3, minmax(0,1fr))}
+.tiles-3 .tile{padding:var(--s1)}
+.tiles-3 .tile-t{font-size:20px}
+.tiles-3 .tile-s{flex-direction:column}
+.tiles-3 .tile-s span + span{display:none}

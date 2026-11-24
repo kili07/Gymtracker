@@ -65,6 +65,34 @@ const SEED = [
   { id: 'deadhang',   name: 'Deadhang',                   group: 'Griffkraft', type: 'time' },
 ];
 
+/* Muskelgruppe nach dem Namen, für importierte Übungen ohne Gruppe. Die
+   erste passende Regel zählt, deshalb stehen die engeren oben: „Leg Curl"
+   gehört zu Beine, nicht zu Arme, „Upright Row" zu Schultern. „drücken"
+   enthält „rücken", deshalb das [^d]. */
+const GROUP_RULES = [
+  ['Griffkraft', /dead ?hang|griffkraft|gripper|farmer|unterarm|wrist/],
+  ['Rumpf', /bauch|crunch|sit-?ups?|plank|beinheben|leg raise|russian twist|rumpf|\bcore\b|\bab[- ]?(roller|wheel)|\babs\b/],
+  ['Beine', /bein|squat|kniebeuge|\bleg\b|\blegs\b|wade|calf|ausfallschritt|lunge|hip ?thrust|glute|adduk|abduk|rumänisch|romanian|\brdl\b/],
+  ['Arme', /bizeps|biceps|trizeps|triceps|curl|skull|push ?down|\barme?\b/],
+  ['Schultern', /schulter|shoulder|seitheben|frontheben|lateral raise|overhead|military|über ?kopf|arnold|face ?pull|shrug|upright|aufrechtes rudern|reverse (butterfl|fl)|butterfly reverse/],
+  ['Rücken', /(^|[^d])rücken|lat ?zug|lat ?pull|pull ?down|\brows?\b|ruder|klimmz|pull-?ups?|chin-?ups?|t-?bar|kreuzheben|deadlift|hyperext|pull-?over|ziehübung/],
+  ['Brust', /brust|bankdr|schrägbank|flachbank|bench|butterfly|\bfl(y|ys|ies|yes?)\b|chest|\bdips?\b|liegest|push-?ups?|cross ?over/],
+];
+/* Heißt die Gruppe in den eigenen Daten anders, gilt der vorhandene Name:
+   sonst stünden „Bauch" und „Rumpf" als zwei Kacheln nebeneinander. */
+const GROUP_ALIAS = {
+  Rumpf: ['rumpf', 'bauch', 'core'], Beine: ['beine', 'bein'], Arme: ['arme', 'arm'],
+  Schultern: ['schultern', 'schulter'], 'Rücken': ['rücken'], Brust: ['brust'], Griffkraft: ['griffkraft', 'griff', 'unterarme'],
+};
+/** Gruppe zu einem Übungsnamen, '' wenn keine Regel passt. `have`: schon
+    benutzte Gruppennamen. */
+function groupGuess(name, have) {
+  const n = String(name || '').toLowerCase();
+  const rule = GROUP_RULES.find((r) => r[1].test(n));
+  if (!rule) return '';
+  return (have || []).find((g) => GROUP_ALIAS[rule[0]].indexOf(g.toLowerCase()) >= 0) || rule[0];
+}
+
 /* ── 2. Helfer ──────────────────────────────────────────────── */
 const fin = (v) => typeof v === 'number' && isFinite(v);
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -117,6 +145,7 @@ function blank() {
     active: null,        // id der laufenden Einheit, sonst null
     rest: null,          // laufende Pause: {endsAt (ms), total (s)} – Endzeit, kein Restwert
     lastBackup: null,
+    groupsGuessed: true, // leere Muskelgruppen schon einmal nach dem Namen gefüllt
   };
 }
 
@@ -174,6 +203,15 @@ function normalize(src, opts) {
         plates: PLATES.indexOf(e.plates) >= 0 ? e.plates : platesDefault(e.name),
       };
     });
+
+  /* Einmalig: leere Gruppen nach dem Namen füllen. Danach steht der Merker in
+     den Daten, und eine bewusst geleerte Gruppe bleibt leer. Gelesen wird aus
+     `src`: in `d` steht schon die Vorgabe aus blank(). */
+  if (!(src && src.groupsGuessed === true)) {
+    const have = Array.from(new Set(d.exercises.map((e) => e.group).filter(Boolean)));
+    d.exercises.forEach((e) => { if (!e.group) e.group = groupGuess(e.name, have); });
+  }
+  d.groupsGuessed = true;
 
   const sids = new Set();
   d.sessions = (Array.isArray(d.sessions) ? d.sessions : [])
@@ -269,12 +307,13 @@ function planMerge(db, src, uid) {
   const meta = new Map();
   (Array.isArray(src.exercises) ? src.exercises : []).forEach((e) => { if (e && e.name) meta.set(key(e.name), e); });
   const newEx = [];
+  const groups = Array.from(new Set(db.exercises.map((e) => e.group).filter(Boolean)));
   const exFor = (name) => {
     const k = key(name);
     if (!k) return null;
     if (!byName.has(k)) {
       const m = meta.get(k) || {};
-      const e = { id: uid(), name: String(name).trim(), group: String(m.group || '').trim(),
+      const e = { id: uid(), name: String(name).trim(), group: String(m.group || '').trim() || groupGuess(name, groups),
         type: TYPES.indexOf(m.type) >= 0 ? m.type : 'weight', archived: false,
         plates: PLATES.indexOf(m.plates) >= 0 ? m.plates : platesDefault(name) };
       byName.set(k, e); newEx.push(e);
@@ -464,6 +503,27 @@ function weekBuckets(sessions, weeks, types, now) {
   return out;
 }
 
+/** Ein Monat als Kalender, Wochen ab Montag. `m` zählt ab 0 und darf über
+    0–11 hinausgehen. Je Tag die Trainings dieses Tages in Ortszeit, in der
+    Reihenfolge des Tages. `lead`: leere Felder vor dem Ersten, `n`: Trainings
+    im Monat. Gezählt wird in Kalendertagen, nicht in Millisekunden: an
+    Tagen der Zeitumstellung hat ein Tag 23 oder 25 Stunden. */
+function monthDays(sessions, y, m) {
+  const first = new Date(y, m, 1);
+  y = first.getFullYear(); m = first.getMonth();
+  const days = [];
+  for (let i = 1, len = new Date(y, m + 1, 0).getDate(); i <= len; i++) days.push({ day: i, t: new Date(y, m, i).getTime(), sessions: [] });
+  let n = 0;
+  sessions.forEach((se) => {
+    const d = new Date(se.date);
+    if (d.getFullYear() !== y || d.getMonth() !== m) return;
+    days[d.getDate() - 1].sessions.push(se);
+    n++;
+  });
+  days.forEach((d) => d.sessions.sort((a, b) => t0(a.date) - t0(b.date)));
+  return { y, m, lead: (first.getDay() + 6) % 7, days, n };
+}
+
 /** id → Typ, für sessionStats und weekBuckets. */
 const typeMap = (exercises) => {
   const m = {};
@@ -472,10 +532,10 @@ const typeMap = (exercises) => {
 };
 
 return {
-  TYPES, SEED, PLATES, BAR_KG, platesDefault, platesFor, blank, normalize, cleanSet, planMerge, dayKey,
+  TYPES, SEED, PLATES, BAR_KG, platesDefault, platesFor, groupGuess, blank, normalize, cleanSet, planMerge, dayKey,
   cleanBodyWeights, bodyWeightOn, setBodyWeight, clock, epley, posOrNull,
   setVolume, sessionStats, lastSet, exercisePoints, bests,
-  inRange, trend, weekStart, weekBuckets, typeMap,
+  inRange, trend, weekStart, weekBuckets, monthDays, typeMap,
 };
 })();
 

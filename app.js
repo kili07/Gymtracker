@@ -25,7 +25,7 @@
 const KEY = 'gym.v1';
 /* Bei jeder Änderung hochzählen: wird in den Einstellungen angezeigt, damit
    sich auf dem Handy prüfen lässt, welche Fassung wirklich läuft. */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 
 const THEME_KEY = 'gym.theme';
 const NOTIFY_KEY = 'gym.notify';      // Berechtigung schon einmal erfragt? Gerätesache, nicht im Backup
@@ -65,6 +65,8 @@ const dfAxis = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'numeri
 const dfShort = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'numeric', year: '2-digit' });
 const dfClock = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
 const dfToday = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'short' });
+const dfMonth = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' });
+const dfNum = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' });
 const dfDayLong = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
 /* Eingaben können deutsches Komma enthalten, parseFloat allein verschluckt es. */
@@ -96,6 +98,9 @@ const lucide = (paths, cls) => `<svg${cls ? ` class="${cls}"` : ''} viewBox="0 0
 const ICON = {
   check: lucide('<path d="M20 6 9 17l-5-5"/>'),
   chev:  lucide('<path d="m9 18 6-6-6-6"/>', 'chev'),
+  left:  lucide('<path d="m15 18-6-6 6-6"/>'),
+  right: lucide('<path d="m9 18 6-6-6-6"/>'),
+  list:  lucide('<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>'),
   plus:  lucide('<path d="M5 12h14"/><path d="M12 5v14"/>'),
   minus: lucide('<path d="M5 12h14"/>'),
   x:     lucide('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
@@ -171,8 +176,11 @@ function setText(st, type) {
 }
 
 /* ── 3. Navigation und Rendern ──────────────────────────────── */
-const TITLES = { heute: 'Heute', verlauf: 'Verlauf', uebungen: 'Übungen', uebung: 'Übung', einst: 'Einstellungen' };
+const TITLES = { heute: 'Heute', verlauf: 'Verlauf', einheiten: 'Einheiten', uebungen: 'Übungen',
+  gruppe: 'Muskelgruppe', uebung: 'Übung', einst: 'Einstellungen' };
 const TABS = ['heute', 'verlauf', 'uebungen', 'einst'];
+/* Unterseiten haben keinen eigenen Tab: hier steht, welcher markiert bleibt. */
+const TAB_OF = { einheiten: 'verlauf', gruppe: 'uebungen', uebung: 'uebungen' };
 let view = 'heute';
 
 /* Zustand der Ansichten (Tab, Zeitraum, Auswahl) liegt nicht im Datensatz,
@@ -181,10 +189,13 @@ let view = 'heute';
 const VIEW_KEY = 'gym.view';
 let range = 90;              // Zeitraum der Übungsansicht in Tagen, 0 = alles
 let curEx = null;            // Übung auf der Unterseite
+let exFrom = 'uebungen';     // woher die Übungsseite geöffnet wurde: dorthin führt Zurück
+let curGroup = null;         // Muskelgruppe auf der Unterseite
+let month = null;            // Monat im Verlauf {y, m}, null = der laufende
 let metric = null;           // Kennzahl im Diagramm der Übungsseite, null = erste des Typs
 
 function saveViewState() {
-  try { sessionStorage.setItem(VIEW_KEY, JSON.stringify({ view, range, curEx })); }
+  try { sessionStorage.setItem(VIEW_KEY, JSON.stringify({ view, range, curEx, exFrom, curGroup, month })); }
   catch (e) { /* privater Modus o.ä.: dann eben wieder Heute */ }
 }
 function restoreViewState() {
@@ -193,18 +204,24 @@ function restoreViewState() {
   if (!s || !TITLES[s.view]) return 'heute';
   if (typeof s.range === 'number') range = s.range;
   if (s.curEx && exById(s.curEx)) curEx = s.curEx;
-  if (s.view === 'uebung' && !curEx) return 'uebungen';
+  if (typeof s.curGroup === 'string') curGroup = s.curGroup;
+  if (s.exFrom === 'gruppe' && curGroup != null) exFrom = 'gruppe';
+  if (s.month && Number.isInteger(s.month.y) && Number.isInteger(s.month.m)) month = { y: s.month.y, m: s.month.m };
+  if ((s.view === 'uebung' && !curEx) || (s.view === 'gruppe' && curGroup == null)) return 'uebungen';
   return s.view;
+}
+
+/** Wohin Zurück von einer Unterseite führt, auf einem Tab null. */
+function parentView() {
+  return view === 'uebung' ? exFrom : (TAB_OF[view] || null);
 }
 
 function nav(v) {
   view = v;
   $$('.view').forEach((s) => s.classList.toggle('hidden', s.id !== 'view-' + v));
-  $$('.tabbar button[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === v));
-  // Die Unterseite hat keinen Tab: dann bleibt „Übungen" markiert
-  if (v === 'uebung') $('.tabbar button[data-nav="uebungen"]').classList.add('on');
-  $('#btnBack').classList.toggle('hidden', v !== 'uebung');
-  $('#btnNew').classList.toggle('hidden', v !== 'uebungen');
+  $$('.tabbar button[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === (TAB_OF[v] || v)));
+  $('#btnBack').classList.toggle('hidden', !TAB_OF[v]);
+  $('#btnNew').classList.toggle('hidden', v !== 'uebungen' && v !== 'gruppe');
   window.scrollTo(0, 0);
   armBack();                    // Zurück soll in der App bleiben, nicht aus ihr führen
   animNext = true;              // ein Wechsel durch den Benutzer darf animieren
@@ -225,14 +242,20 @@ function render() {
   for (const k of readers.keys()) if (k[0] === 'v') readers.delete(k);
   /* Auf Heute steht das Datum: „Heute" wiederholte nur den Namen des Tabs. */
   $('#viewTitle').textContent = view === 'uebung' && curEx ? exName(curEx)
+    : view === 'gruppe' ? groupLabel(curGroup)
     : view === 'heute' ? (activeSession() ? 'Training' : dfDayLong.format(new Date())) : (TITLES[view] || '');
   document.body.classList.toggle('on-heute', view === 'heute' && !activeSession());
+  // Übersichten, die ohne Scrollen auf einen Bildschirm passen (.fit in style.css)
+  document.body.classList.toggle('fit', view === 'uebungen' || (view === 'verlauf' && db.sessions.length > 0));
   if (view === 'heute') renderHeute();
   else if (view === 'verlauf') renderVerlauf();
+  else if (view === 'einheiten') renderEinheiten();
   else if (view === 'uebungen') renderUebungen();
+  else if (view === 'gruppe') renderGruppe();
   else if (view === 'uebung') renderUebung();
   else if (view === 'einst') renderEinst();
   renderRest();
+  if (view === 'verlauf') drawBodyWeight();   // erst nach der Pausenleiste: sie nimmt Höhe weg
   if (animNext) { animNext = false; runAnims($('#view-' + view)); }
   saveViewState();
 }
@@ -863,16 +886,17 @@ function pickExercise(sid, back) {
 
 /** Übungen nach Muskelgruppe, Gruppen und Namen alphabetisch, ohne Gruppe
     am Ende. Für Übungswahl und Übungsliste. */
+const NO_GROUP = 'Ohne Gruppe';
 const collator = new Intl.Collator('de-DE', { sensitivity: 'base' });
 function byGroup(list) {
   const groups = new Map();
   list.forEach((e) => {
-    const g = e.group || 'Ohne Gruppe';
+    const g = e.group || NO_GROUP;
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push(e);
   });
   return Array.from(groups, ([g, l]) => ({ g, list: l.sort((a, b) => collator.compare(a.name, b.name)) }))
-    .sort((a, b) => (a.g === 'Ohne Gruppe') - (b.g === 'Ohne Gruppe') || collator.compare(a.g, b.g));
+    .sort((a, b) => (a.g === NO_GROUP) - (b.g === NO_GROUP) || collator.compare(a.g, b.g));
 }
 
 function pickRows(se, q) {
@@ -932,27 +956,76 @@ function renderVerlauf() {
       <button class="btn btn-primary" data-nav="heute">Zu Heute</button></div>${bodyWeightCard()}`;
     return;
   }
-  const types = Core.typeMap(db.exercises);
-  const weeks = Core.weekBuckets(db.sessions, 12, types);
-  const bars = Charts.bars(weeks.map((w) => ({ label: dfAxis.format(new Date(w.start)), v: w.sets, cur: w.cur })),
-    { fmtY: (v) => nf0.format(v) });
-  const since = Date.now() - 30 * 86400000;
-  const last30 = db.sessions.filter((s) => Date.parse(s.date) >= since);
-  let sets30 = 0, vol30 = 0;
-  last30.forEach((s) => { const st = Core.sessionStats(s, types); sets30 += st.sets; vol30 += st.volume; });
-  const weekRead = (w) => `<b>${nf0.format(w.sets)}</b> ${w.sets === 1 ? 'Satz' : 'Sätze'} · ${plural(w.sessions, 'Training', 'Trainings')} · ab ${esc(dfAxis.format(new Date(w.start)))}`;
-
-  el.innerHTML = `<div class="sec-h">Sätze je Woche</div>
-    <div class="card">${chartBox(bars, (i) => (weeks[i] ? weekRead(weeks[i]) : null), weekRead(weeks[weeks.length - 1]))}
-      <div class="stats">
-        <div><span class="lbl">Trainings</span><span class="num">${countNum(last30.length)}</span></div>
-        <div><span class="lbl">Sätze</span><span class="num">${countNum(sets30)}</span></div>
-        <div><span class="lbl">Volumen</span><span class="num">${countNum(vol30)}<small>kg</small></span></div>
-      </div>
-      <p class="note">Letzte 30 Tage</p>
-    </div>
-    ${sessionWeeks(types)}
+  $('#topSub').textContent = '';      // die Zahl der Trainings steht am Monat
+  el.innerHTML = `${monthCard()}
+    <button class="btn btn-block cal-more" data-act="units">${ICON.list}Einheiten ansehen</button>
     ${bodyWeightCard()}`;
+}
+
+/** Monate, zwischen denen sich blättern lässt: vom ersten Training bis heute
+    (oder bis zum letzten Training, falls eines vordatiert ist). Als
+    durchgezählte Monate, damit sich Jahre vergleichen lassen. */
+function monthRange() {
+  const no = (t) => { const d = new Date(t); return d.getFullYear() * 12 + d.getMonth(); };
+  const all = db.sessions.map((se) => no(se.date)).concat(no(Date.now()));
+  return { min: Math.min(...all), max: Math.max(...all), now: no(Date.now()) };
+}
+
+/** Blättern. Der laufende Monat wird als null gemerkt, sonst bliebe die App
+    nach dem Monatswechsel im alten stehen. */
+function setMonth(no) {
+  month = no === monthRange().now ? null : { y: Math.floor(no / 12), m: no % 12 };
+  render();
+}
+
+/** Monatsansicht: an welchen Tagen war ein Training? Trainingstage sind
+    gefüllt und öffnen das Training. Zeigt, bewertet nicht. */
+function monthCard() {
+  const r = monthRange();
+  const no = Math.max(r.min, Math.min(r.max, month ? month.y * 12 + month.m : r.now));
+  const mo = Core.monthDays(db.sessions, Math.floor(no / 12), no % 12);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const cells = mo.days.map((d, i) => {
+    const cls = ['cd', d.sessions.length ? 'on' : '', d.t === today.getTime() ? 'today' : '', d.t > today.getTime() ? 'next' : ''].filter(Boolean).join(' ');
+    const col = i ? '' : ` style="grid-column-start:${mo.lead + 1}"`;
+    if (!d.sessions.length) return `<span class="${cls}"${col}${d.t === today.getTime() ? ' aria-current="date"' : ''}>${d.day}</span>`;
+    const n = d.sessions.length;
+    const what = d.sessions.map(sessionGroups).flat().filter((g, k, a) => a.indexOf(g) === k).join(', ');
+    return `<button class="${cls}"${col} data-act="day" data-t="${d.t}"${d.t === today.getTime() ? ' aria-current="date"' : ''}
+      aria-label="${esc(dfDayLong.format(new Date(d.t)))}: ${esc(plural(n, 'Training', 'Trainings'))}${what ? ', ' + esc(what) : ''}">${d.day}${n > 1 ? `<small>${n}×</small>` : ''}</button>`;
+  }).join('');
+  return `<div class="cal">
+    <div class="cal-head">
+      <button class="icon-btn" data-act="month" data-no="${no - 1}" aria-label="Voriger Monat"${no <= r.min ? ' disabled' : ''}>${ICON.left}</button>
+      <div class="grow"><h2 class="cal-title">${esc(dfMonth.format(new Date(mo.y, mo.m, 1)))}</h2>
+        <div class="cal-n">${esc(plural(mo.n, 'Training', 'Trainings'))}</div></div>
+      <button class="icon-btn" data-act="month" data-no="${no + 1}" aria-label="Nächster Monat"${no >= r.max ? ' disabled' : ''}>${ICON.right}</button>
+    </div>
+    <div class="cal-grid cal-wd" aria-hidden="true">${WD.map((w) => `<span>${w}</span>`).join('')}</div>
+    <div class="cal-grid">${cells}</div>
+  </div>`;
+}
+
+/** Tag im Kalender angetippt: ein Training gleich öffnen, mehrere zur Wahl. */
+function openDay(t) {
+  const d = new Date(t);
+  const list = Core.monthDays(db.sessions, d.getFullYear(), d.getMonth()).days[d.getDate() - 1].sessions;
+  if (list.length === 1) { openSessionSheet(list[0].id); return; }
+  if (!list.length) return;
+  const types = Core.typeMap(db.exercises);
+  const back = () => openDay(t);
+  openSheet(dfDayLong.format(d), `<div class="rows">${list.map((se) => sessionRow(se, types, true)).join('')}</div>`, null);
+  $('#sheetBody').onclick = (e) => {
+    const r = e.target.closest('[data-id]');
+    if (r) openSessionSheet(r.dataset.id, back);
+  };
+}
+
+/** Unterseite: alle Trainings zum Scrollen. */
+function renderEinheiten() {
+  $('#topSub').textContent = plural(db.sessions.length, 'Training', 'Trainings');
+  if (!db.sessions.length) { nav('verlauf'); return; }
+  $('#view-einheiten').innerHTML = sessionWeeks(Core.typeMap(db.exercises));
 }
 
 /** Kalenderwoche nach ISO 8601 (Woche mit dem ersten Donnerstag ist KW 1). */
@@ -975,6 +1048,19 @@ function sessionGroups(se) {
   return out;
 }
 
+/** Zeile eines Trainings: Tag, Muskelgruppen, Zahl der Sätze. Im Sheet ohne
+    data-act: dort ersetzt der Klick den Inhalt, die Zeile hängt danach nicht
+    mehr im Sheet, und die Delegation am body öffnete ein zweites Mal. */
+function sessionRow(se, types, inSheet) {
+  const st = Core.sessionStats(se, types);
+  const sub = sessionGroups(se).join(', ') || 'ohne Übung';
+  return `<button class="row" ${inSheet ? '' : 'data-act="session" '}data-id="${esc(se.id)}">
+    <span class="grow"><span class="t">${esc(dfDay.format(new Date(se.date)))}${se.id === db.active ? ' <span class="tag">läuft</span>' : ''}</span>
+    <span class="sub">${esc(sub)}${se.extras.length ? ' · ' + esc(se.extras.map(extraLabel).join(', ')) : ''}</span></span>
+    <span class="end num">${esc(nf0.format(st.sets))}<small>${st.sets === 1 ? 'Satz' : 'Sätze'}</small></span>${ICON.chev}
+  </button>`;
+}
+
 /** Alle Trainings, nach Kalenderwochen gruppiert, neueste zuerst. */
 function sessionWeeks(types) {
   const thisWeek = Core.weekStart(Date.now());
@@ -988,57 +1074,53 @@ function sessionWeeks(types) {
   const prevWeek = new Date(thisWeek); prevWeek.setDate(prevWeek.getDate() - 7);
   return groups.map((g) => {
     const name = g.ws === thisWeek ? 'Diese Woche' : g.ws === prevWeek.getTime() ? 'Letzte Woche' : `KW ${isoWeek(g.ws)}`;
-    const rows = g.list.map((se) => {
-      const st = Core.sessionStats(se, types);
-      const sub = sessionGroups(se).join(', ') || 'ohne Übung';
-      return `<button class="row" data-act="session" data-id="${esc(se.id)}">
-        <span class="grow"><span class="t">${esc(dfDay.format(new Date(se.date)))}${se.id === db.active ? ' <span class="tag">läuft</span>' : ''}</span>
-        <span class="sub">${esc(sub)}${se.extras.length ? ' · ' + esc(se.extras.map(extraLabel).join(', ')) : ''}</span></span>
-        <span class="end num">${esc(nf0.format(st.sets))}<small>${st.sets === 1 ? 'Satz' : 'Sätze'}</small></span>${ICON.chev}
-      </button>`;
-    }).join('');
+    const rows = g.list.map((se) => sessionRow(se, types)).join('');
     return `<div class="sec-h"><span class="grow">${esc(name)}</span><span>${esc(plural(g.list.length, 'Training', 'Trainings'))}</span></div>
       <div class="rows">${rows}</div>`;
   }).join('');
 }
 
-/** Karte Körpergewicht unten im Verlauf: aktueller Wert, Änderung in 30
-    Tagen, Verlauf der letzten Einträge. Zeigt, bewertet nicht. */
+/** Karte Körpergewicht im Verlauf: Wert und Änderung in einer Zeile, darunter
+    die letzten Einträge als Linie. Zeigt, bewertet nicht. */
 function bodyWeightCard() {
   const list = db.bodyWeights;
-  const head = '<div class="sec-h">Körpergewicht</div>';
   if (!list.length) {
-    return `${head}<div class="card">
-      <p class="note">Noch kein Eintrag. Beim Start eines Trainings fragt die App einmal am Tag danach.</p>
-      <button class="btn btn-block" data-act="bwadd">${ICON.plus}Gewicht eintragen</button></div>`;
+    return `<div class="card bw bw-none"><div class="grow"><div class="lbl">Körpergewicht</div>
+      <p class="note">Noch kein Eintrag</p></div>
+      <button class="btn btn-sm" data-act="bwadd">${ICON.plus}Eintragen</button></div>`;
   }
   const cur = list[0];
   // Vergleich mit dem jüngsten Eintrag, der mindestens 30 Tage älter ist
   const ref = list.find((b) => Date.parse(cur.date) - Date.parse(b.date) >= 30 * 86400000) || null;
   const diff = ref ? Math.round((cur.kg - ref.kg) * 10) / 10 : null;
-  const pts = list.slice(0, 30).reverse();           // höchstens 30 Einträge, alt nach neu
-  const fmt = (v) => nfa.format(v);
-  let chart = '';
-  if (pts.length >= 2) {
-    const svg = Charts.line({ vals: pts.map((b) => b.kg), labels: pts.map((b) => dfAxis.format(new Date(b.date))), fmtY: fmt });
-    const read = (i) => (pts[i]
-      ? `<b>${esc(fmt(pts[i].kg))}</b> kg <span>${esc(dfMed.format(new Date(pts[i].date)))}</span>` : null);
-    chart = chartBox(svg, read, read(pts.length - 1));
-  }
   const sign = diff == null ? '' : (diff > 0 ? '+' : (diff < 0 ? '−' : '±'));
-  return `${head}<div class="card">
-    ${chart}
-    <div class="stats${chart ? '' : ' stats-top'}">
-      <div><span class="lbl">Aktuell</span><span class="num">${countNum(cur.kg, true)}<small>kg</small></span></div>
-      ${diff == null
-        ? `<div><span class="lbl">Seit</span><span class="num">${esc(dfAxis.format(new Date(list[list.length - 1].date)))}</span></div>`
-        : `<div><span class="lbl">30 Tage</span><span class="num">${esc(sign + nf1.format(Math.abs(diff)))}<small>kg</small></span></div>`}
-      <div><span class="lbl">Einträge</span><span class="num">${countNum(list.length)}</span></div>
+  return `<div class="card bw">
+    <div class="bw-btns">
+      <button class="icon-btn" data-act="bwlist" aria-label="Alle Einträge">${ICON.list}</button>
+      <button class="icon-btn" data-act="bwadd" aria-label="Körpergewicht eintragen">${ICON.plus}</button>
     </div>
-    <div class="btn-row bw-btns">
-      <button class="btn" data-act="bwadd">${ICON.plus}Eintragen</button>
-      <button class="btn" data-act="bwlist">Alle Einträge</button>
-    </div></div>`;
+    <div class="lbl">Körpergewicht${diff == null ? '' : ` · ${esc(sign + nf1.format(Math.abs(diff)))} kg in 30 T.`}</div>
+    <div class="bw-chart" id="bwChart">${chartBox('', null, bwRead(cur))}</div>
+  </div>`;
+}
+
+const bwRead = (b) => (b ? `<b>${esc(nfa.format(b.kg))}</b> kg <span>${esc(dfMed.format(new Date(b.date)))}</span>` : null);
+
+/** Linie des Körpergewichts in den Platz zeichnen, der auf dem Bildschirm
+    übrig ist. Das Diagramm hat ein festes Seitenverhältnis: die Höhe muss
+    beim Zeichnen bekannt sein, sonst schrumpft es samt Schrift. */
+function drawBodyWeight() {
+  const el = $('#bwChart');
+  if (!el) return;
+  const pts = db.bodyWeights.slice(0, 30).reverse();    // höchstens 30 Einträge, alt nach neu
+  const read = (i) => bwRead(pts[i]);
+  el.closest('.bw').classList.toggle('bw-one', pts.length < 2);
+  if (pts.length < 2) return;
+  const free = el.clientHeight - el.querySelector('.readout').offsetHeight - 4;
+  const h = Math.round(Math.max(56, Math.min(220, free)) * 340 / (el.clientWidth || 340));
+  const svg = Charts.line({ vals: pts.map((b) => b.kg), labels: pts.map((b) => dfAxis.format(new Date(b.date))),
+    fmtY: (v) => nfa.format(v), h, yt: h < 90 ? 1 : (h < 140 ? 2 : 4) });
+  el.innerHTML = chartBox(svg, read, read(pts.length - 1));
 }
 
 /** Körpergewicht eintragen oder ändern.
@@ -1185,6 +1267,18 @@ function dateSheet(id, back) {
 /* ── 9. Ansicht Übungen und Übung ───────────────────────────── */
 let exQuery = '';
 
+/* Kachel der archivierten Übungen. Steuerzeichen vorn, damit keine eigene
+   Muskelgruppe gleich heißen kann. */
+const G_ARCH = '\u0001archiv';
+const groupLabel = (g) => (g === G_ARCH ? 'Archiviert' : g);
+
+/** Übungen einer Kachel. */
+function groupList(g) {
+  if (g === G_ARCH) return db.exercises.filter((e) => e.archived).sort((a, b) => collator.compare(a.name, b.name));
+  const hit = byGroup(db.exercises.filter((e) => !e.archived)).find((b) => b.g === g);
+  return hit ? hit.list : [];
+}
+
 function renderUebungen() {
   const el = $('#view-uebungen');
   const open = db.exercises.filter((e) => !e.archived);
@@ -1196,14 +1290,16 @@ function renderUebungen() {
   $('#exQ').oninput = (e) => { exQuery = e.target.value; $('#exList').innerHTML = exListHtml(); };
 }
 
+/** Ohne Suche eine Kachel je Muskelgruppe, mit Suche die Treffer als Liste. */
 function exListHtml() {
   const needle = exQuery.trim().toLowerCase();
+  if (!needle && db.exercises.length) return groupTiles();
   const hit = (e) => !needle || (e.name + ' ' + e.group).toLowerCase().indexOf(needle) >= 0;
   const open = db.exercises.filter((e) => !e.archived && hit(e));
   const arch = db.exercises.filter((e) => e.archived && hit(e));
   if (!open.length && !arch.length) {
     return `<div class="empty"><h2>Keine Übung gefunden</h2>
-      <p>${needle ? 'Andere Schreibweise versuchen – oder die Übung neu anlegen.' : 'Lege Deine erste Übung an.'}</p>
+      <p>${needle ? 'Andere Schreibweise versuchen oder die Übung neu anlegen.' : 'Lege Deine erste Übung an.'}</p>
       <button class="btn btn-primary" data-act="newex">${ICON.plus}Neue Übung</button></div>`;
   }
   /* Eine Karte mit Zwischenzeilen statt einer Karte je Gruppe: Gruppen mit
@@ -1212,6 +1308,47 @@ function exListHtml() {
     `<div class="row-h">${esc(b.g)}</div>${b.list.map(exRow).join('')}`).join('')}</div>` : '';
   if (arch.length) out += `<div class="sec-h">Archiviert</div><div class="rows">${arch.map(exRow).join('')}</div>`;
   return out;
+}
+
+/** Wann eine Übung zuletzt dran war: id → Datum. db.sessions ist absteigend
+    sortiert, der erste Treffer ist der jüngste. */
+function lastTrained() {
+  const m = new Map();
+  db.sessions.forEach((se) => se.items.forEach((it) => { if (!m.has(it.exerciseId)) m.set(it.exerciseId, se.date); }));
+  return m;
+}
+
+/** Kurze Fassung von ago() für die Kacheln. */
+function agoShort(iso) {
+  const a = new Date(iso); a.setHours(0, 0, 0, 0);
+  const b = new Date(); b.setHours(0, 0, 0, 0);
+  const d = Math.round((b - a) / 86400000);
+  return d <= 0 ? 'heute' : d === 1 ? 'gestern' : d < 7 ? `vor ${d} T.` : dfNum.format(a);
+}
+
+/** Übersicht: eine Kachel je Muskelgruppe. Die Kacheln teilen sich die Höhe,
+    so bleibt alles auf einem Bildschirm, egal wie viele Übungen dazukommen. */
+function groupTiles() {
+  const when = lastTrained();
+  const tile = (key, list) => {
+    const dates = list.map((e) => when.get(e.id)).filter(Boolean).sort((a, b) => Date.parse(b) - Date.parse(a));
+    return `<button class="tile" data-act="group" data-g="${esc(key)}">
+      <span class="tile-t">${esc(groupLabel(key))}</span>
+      <span class="tile-s"><span>${esc(plural(list.length, 'Übung', 'Übungen'))}</span><span>${dates.length ? esc(agoShort(dates[0])) : 'noch nie'}</span></span>
+    </button>`;
+  };
+  const groups = byGroup(db.exercises.filter((e) => !e.archived));
+  const arch = groupList(G_ARCH);
+  const n = groups.length + (arch.length ? 1 : 0);
+  return `<div class="tiles${n > 10 ? ' tiles-3' : n > 6 ? ' tiles-dense' : ''}">${groups.map((b) => tile(b.g, b.list)).join('')}${arch.length ? tile(G_ARCH, arch) : ''}</div>`;
+}
+
+/** Unterseite: die Übungen einer Muskelgruppe. */
+function renderGruppe() {
+  const list = groupList(curGroup);
+  if (!list.length) { nav('uebungen'); return; }      // letzte Übung gelöscht oder umgruppiert
+  $('#topSub').textContent = plural(list.length, 'Übung', 'Übungen');
+  $('#view-gruppe').innerHTML = `<div class="rows exlist">${list.map(exRow).join('')}</div>`;
 }
 
 /** Zeile der Übungsliste: Name, Gruppe, letzter Wert und eine Sparkline der
@@ -1232,6 +1369,7 @@ function exRow(e) {
 function openEx(id) {
   if (curEx !== id) metric = null;   // neue Übung beginnt mit der ersten Kennzahl
   curEx = id;
+  exFrom = view === 'gruppe' ? 'gruppe' : 'uebungen';
   nav('uebung');
 }
 
@@ -1697,7 +1835,7 @@ function wireBack() {
     // Über den Abbrechen-Knopf, nicht closeSheet: verschachtelte Sheets haben
     // dort ihren Rückweg zum vorherigen Sheet hinterlegt.
     if (!$('#sheet').classList.contains('hidden')) { $('#sheetCancel').click(); pushGuard(); return; }
-    if (view === 'uebung') { nav('uebungen'); pushGuard(); return; }
+    if (parentView()) { nav(parentView()); pushGuard(); return; }
     if (view !== 'heute') { nav('heute'); pushGuard(); return; }
 
     leaveHint(activeSession()
@@ -1939,11 +2077,22 @@ function wire() {
   // Diagramme ablesen: Antippen und Ziehen mit dem Finger, mit der Maus schon beim Drüberfahren
   document.addEventListener('pointerdown', onChartPointer);
   document.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'mouse') onChartPointer(e); });
-  $('#btnBack').onclick = () => nav('uebungen');
-  $('#btnNew').onclick = () => newExercise();
+  $('#btnBack').onclick = () => { if (parentView()) nav(parentView()); };
+  // Aus einer Muskelgruppe heraus ist die Gruppe schon klar
+  $('#btnNew').onclick = () => {
+    newExercise();
+    if (view === 'gruppe' && curGroup !== G_ARCH && curGroup !== NO_GROUP) $('#f_group').value = curGroup;
+  };
   $('#sheetCancel').onclick = closeSheet;
   $('#scrim').onclick = () => $('#sheetCancel').click();   // wie Abbrechen, mit Rückweg verschachtelter Sheets
   $('#sheetSave').onclick = () => sheetSaveFn && sheetSaveFn();
+
+  // Gedreht oder Fenster geändert: das Gewichtsdiagramm passt sich der Höhe an
+  let resizeT = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => { if (view === 'verlauf') drawBodyWeight(); }, 150);
+  });
 
   /* Zurück aus dem Hintergrund: die Pause ist weitergelaufen (Endzeit als
      Zeitstempel), die Bildschirmsperre hat der Browser zurückgenommen. */
@@ -1975,6 +2124,10 @@ function viewAct(el) {
   else if (act === 'extra') toggleExtra(db.active, el.dataset.v);
   else if (act === 'session') openSessionSheet(el.dataset.id);
   else if (act === 'ex') openEx(el.dataset.id);
+  else if (act === 'group') { curGroup = el.dataset.g; nav('gruppe'); }
+  else if (act === 'units') nav('einheiten');
+  else if (act === 'day') openDay(+el.dataset.t);
+  else if (act === 'month') setMonth(+el.dataset.no);
   else if (act === 'newex') newExercise();
   else if (act === 'editex') editExercise(curEx);
   else if (act === 'addcur') {

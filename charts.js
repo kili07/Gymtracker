@@ -135,7 +135,8 @@ function spark(vals, o) {
 }
 
 /* ── Linie mit Verlaufsfläche ───────────────────────────────── */
-/** o: { vals, labels, lo, hi, fmtY, h, zero, unit, cls }; lo/hi: Normalband je Punkt */
+/** o: { vals, labels, lo, hi, fmtY, h, yt, zero, unit, cls }; lo/hi: Normalband
+    je Punkt; yt: Zahl der Achsenwerte (flache Diagramme brauchen weniger) */
 function line(o) {
   const h = o.h || 180, x0 = 36, x1 = W - 8, top = 10, bot = h - 20;
   const n = o.vals.length;
@@ -148,7 +149,10 @@ function line(o) {
   const ys = yv(o.vals);
   const a = areaDef();
   let s = `<svg class="chart-svg${o.cls ? ' ' + esc(o.cls) : ''}" viewBox="0 0 ${W} ${h}" data-n="${n}" data-x0="${x0}" data-x1="${x1}">${a.def}`;
-  s += yAxis(ticks(ex[0], ex[1], 4, o.unit), y, x0, x1, o.fmtY || String);
+  let yt = ticks(ex[0], ex[1], o.yt || 4, o.unit);
+  // Sehr flach: nur der unterste und der oberste Wert, sonst stehen die Zahlen ineinander
+  if (o.yt === 1 && yt.length > 2) yt = [yt[0], yt[yt.length - 1]];
+  s += yAxis(yt, y, x0, x1, o.fmtY || String);
   s += `<path class="area" fill="url(#${a.id})" d="${areaPath(xs, ys, bot)}"/>`;
   // Das Normalband über der Fläche, sonst ginge es in ihr unter
   if (o.lo && o.hi) {

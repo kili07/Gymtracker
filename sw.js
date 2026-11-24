@@ -3,7 +3,7 @@
    Worker die alte Fassung weiter. Fehlt eine Datei aus ASSETS auf dem
    Server, scheitert die Installation ganz: neue Dateien hier eintragen,
    entfernte austragen. */
-const CACHE = 'gym-v12';
+const CACHE = 'gym-v13';
 const ASSETS = [
   './', './index.html', './tokens.css', './style.css', './core.js', './charts.js', './app.js',
   './fonts/archivo-latin-wght-normal.woff2', './fonts/big-shoulders-display-latin-wght-normal.woff2',

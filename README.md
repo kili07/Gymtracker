@@ -8,9 +8,9 @@ Trainingslogger fürs Handy: Sätze, Wiederholungen und Gewicht während des Tra
 
 **Pause** — Nach jedem gespeicherten Satz läuft die Pause automatisch, standardmäßig 1:30. Die Leiste über der Tableiste zeigt die Restzeit, ±15 s und Überspringen. Gespeichert wird die Endzeit, nicht die Restzeit: Die Pause läuft deshalb richtig weiter, wenn der Bildschirm ausgeht oder die App im Hintergrund liegt. Am Ende vibriert das Handy und — wenn erlaubt — kommt eine Benachrichtigung. Während eines Trainings hält die App den Bildschirm wach.
 
-**Verlauf** — Körpergewicht mit Verlauf, aktuellem Wert und Änderung in 30 Tagen (Einträge nachtragen, ändern, löschen), Sätze je Woche als Balken, Kennwerte der letzten 30 Tage, darunter alle Trainings. Ein Tipp öffnet die Einheit: Sätze ändern oder nachtragen, Übung entfernen, Notiz, Datum, Training löschen.
+**Verlauf** — Alles auf einem Bildschirm: Monatsansicht mit den Trainingstagen (blättern mit den Pfeilen, ein Tipp auf den Tag öffnet das Training) und Körpergewicht mit aktuellem Wert, Änderung in 30 Tagen und Verlauf (Einträge nachtragen, ändern, löschen). „Einheiten ansehen" öffnet die Liste aller Trainings nach Kalenderwochen. Ein Tipp öffnet die Einheit: Sätze ändern oder nachtragen, Übung entfernen, Notiz, Datum, Training löschen.
 
-**Übungen** — Alle Übungen nach Muskelgruppe, mit dem letzten Wert und einer kleinen Verlaufslinie. Ein Tipp öffnet die Übung mit Bestwerten und Diagrammen über 3 Monate, 1 Jahr oder alles:
+**Übungen** — Eine Kachel je Muskelgruppe mit Zahl der Übungen und letztem Training, alles auf einem Bildschirm. Ein Tipp öffnet die Übungen der Gruppe mit dem letzten Wert und einer kleinen Verlaufslinie, die Suche findet sie direkt. Übungen ohne Muskelgruppe ordnet die App einmalig nach dem Namen zu. Ein weiterer Tipp öffnet die Übung mit Bestwerten und Diagrammen über 3 Monate, 1 Jahr oder alles:
 
 | Übungstyp | Diagramme |
 |---|---|
@@ -26,7 +26,7 @@ Als Startliste sind die bisher genutzten Übungen angelegt: Bizeps, Bankdrücken
 
 ## Installieren
 
-1. `https://<name>.github.io/gymtracker/` in Chrome auf dem Handy öffnen.
+1. `https://<name>.github.io/Gymtracker/` in Chrome auf dem Handy öffnen.
 2. Einstellungen → **App installieren**. Der Knopf erscheint eventuell erst nach ein paar Sekunden.
 3. Ersatzweise ⋮ → „App installieren" — nie „Verknüpfung erstellen", die öffnet sich immer als Tab mit Adressleiste.
 

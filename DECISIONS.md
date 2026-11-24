@@ -27,6 +27,9 @@
 - **2.0.0 (10.11.2026): Neugestaltung Scheiben** nach Artboard A des Design-Artifacts „PWA Startseiten". Funktionen unverändert, neu ist die Darstellung. Archivo und Big Shoulders Display ersetzen Inter und Space Grotesk.
 - **Scheiben-Anzeige als Einstellung je Übung (`plates`), 2.0.0.** Ob ein Gewicht eine Langhantel mit 20-kg-Stange, nur Scheiben (T-Bar) oder eine Maschine ist, steht nicht in den Daten. Deshalb ein Feld je Übung, einstellbar in „Übung bearbeiten". Fehlt es in alten Daten, gibt der Name eine Vorgabe (`Core.platesDefault`: Bankdrücken frei, Squats/Kniebeuge, Kreuzheben → Langhantel; T-Bar → nur Scheiben; sonst keine). Aufteilung je Seite gierig mit möglichst wenig Scheiben (25 bis 1,25 kg); was sich nicht legen lässt, steht nur im Bildtext. Die Grafik ersetzt keinen Wert, die Zahl steht immer daneben.
 
+- **2.1.0 (24.11.2026): Verlauf und Übungen auf einem Bildschirm.** Monatsansicht statt „Sätze je Woche" und der Kennwerte der letzten 30 Tage; die Trainings stehen auf der Unterseite Einheiten, das Körpergewicht bleibt im Verlauf. Übungen als Kacheln je Muskelgruppe statt als lange Liste: 25 und mehr Zeilen passen auf keinen Bildschirm, Kacheln immer. Heute bleibt unverändert.
+- **Muskelgruppe einmalig nach dem Namen (2.1.0).** Importierte Übungen hatten keine Gruppe und stünden alle unter „Ohne Gruppe". `normalize()` füllt nur leere Gruppen und nur einmal (`groupsGuessed` in den Daten): Wer eine Gruppe bewusst leert, bekommt sie nicht wieder. Vorhandene Gruppennamen haben Vorrang („Bauch" statt „Rumpf"). Alte Trainings, die später dazukommen, laufen durch dieselben Regeln.
+
 ## Abweichungen vom Skill
 1. **Einstellungen als vierter Tab statt als Sheet.** Das Briefing nennt sie als eigene Ansicht, und Pausenzeit, Übungsverwaltung, Backup und Theme sind zusammen zu viel für ein Sheet. `--tabs` steht deshalb auf 4.
 2. **Zahlenfelder sind `type="text"` mit `inputmode="decimal"`** statt `type="number"` mit `step="any"`. Android verwirft bei `type="number"` das deutsche Komma, der Wert kommt leer an. `num()` parst Komma und Punkt gleich, die Tastatur bleibt die Zifferntastatur.
@@ -35,6 +38,8 @@
 5. **Extras um Cardio und Dehnen ergänzt.** In den Notizen stand nur Sauna. Zwei weitere Markierungen kosten nichts und ersparen das Notizfeld für den häufigsten Fall.
 
 Keine Abweichung, nur zur Klarstellung: `core.js` ist eine eigene Datei, weil die Rechenlogik 347 Zeilen hat und damit über der Schwelle von 300 liegt. Sie hat kein DOM, endet mit dem `module.exports`-Zweig und wird von `tests/` in Node geprüft.
+
+6. **Tage der Monatsansicht unter 44 px Höhe auf niedrigen Bildschirmen.** Ab etwa 700 px Höhe sind sie 44 px hoch, bei 600 px in einem Monat mit sechs Wochen 35 px (Breite immer 44 px). Sonst passte der Monat nicht mit dem Körpergewicht auf einen Bildschirm; jeder Tag ist auch über „Einheiten ansehen" erreichbar. Während einer laufenden Pause scrollt der Verlauf auf solchen Geräten um wenige Pixel.
 
 ## Offen
 Nur am Handy prüfbar:
@@ -49,6 +54,8 @@ Nur am Handy prüfbar:
 - [ ] Erinnerung ans Körpergewicht erscheint beim ersten Trainingsstart des Tages und nicht beim zweiten
 - [ ] 1.5.0 mit echten Daten: "Bestwert"-Pills auf Heute nicht zu häufig, Muskelgruppen im Verlauf aussagekräftig (importierte Übungen ohne Gruppe zeigen den Namen)
 
+- [ ] 2.1.0: Verlauf und Übungen passen auf das eigene Handy; Suche in Übungen bei offener Tastatur (Treffer enden über der Tastatur)
+- [ ] 2.1.0: automatisch zugeordnete Muskelgruppen stimmen (sonst in Übung bearbeiten ändern)
 - [ ] 2.0.0: Scheiben-Vorgaben passen zu den eigenen Übungen (sonst in Übung bearbeiten umstellen)
 
 Sonstiges: nichts offen. Geprüft und in Ordnung: Pausenleiste und untere Leiste sitzen
